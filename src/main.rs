@@ -16,20 +16,32 @@ fn sixty() {
     let mut f = File::open("6502_functional_test.bin").expect("Couldn't find the file");
     f.read_to_end(&mut buffer);
 
-    let mut i: u16 = 0x400;
-    while i < 0x600 {
-        let index = i as usize;
-        let opcode = buffer[index] as usize;
-        let name = constants::OPCODE_NAMES[opcode];
-        let size = constants::SIZES[opcode];
-        if size == 1 {
-            println!("{:04X}: {}", i, name);
-        } else if size == 2 {
-            println!("{:04X}: {} {:02X}", i, name, buffer[index + 1]);
-        } else {
-            println!("{:04X}: {} {:X}", i, name, word(&buffer, index));
-        }
-        i = i + size as u16;
+    let mut i: usize = 0x600;
+    while i < 0x700 {
+        let (s, size) = disassemble(&buffer, i);
+        println!("{}", s);
+        i += size;
     }
-    println!("Read file");
+}
+
+use constants::*;
+
+fn disassemble(buffer: &Vec<u8>, index: usize) -> (String, usize) {
+    let opcode = buffer[index] as usize;
+    let name = constants::OPCODE_NAMES[opcode];
+    let size: usize = constants::SIZES[opcode];
+    let addressingType = &ADDRESSING_TYPES[opcode];
+
+    let result: String;
+    if size == 1 {
+        result = format!("{:04X}: {}", index, name);
+    } else if size == 2 {
+        result = format!("{:04X}: {} {:}", index, name,
+             addressingType.to_string(index, buffer[index + 1], 0))
+    } else {
+        result = format!("{:04X}: {} {}", index, name,
+            addressingType.to_string(index, buffer[index + 1], word(&buffer, index)));
+    };
+
+    return (result, size);
 }

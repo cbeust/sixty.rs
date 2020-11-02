@@ -1,4 +1,4 @@
-#[allow(unused)]
+#![allow(unused)]
 
 const BRK: u8 = 0x00;
 
@@ -181,7 +181,7 @@ const INY: u8 = 0xc8;
 
 const RTS: u8 = 0x60;
 
-pub const SIZES: [u8; 256] = [
+pub const SIZES: [usize; 256] = [
     1, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  // 0x00-0x0f
     2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,  // 0x10-0x1f
     3, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  // 0x20-0x2f
@@ -233,4 +233,109 @@ pub const OPCODE_NAMES: [&str; 256] = [
     "INX", "SBC", "NOP", "NOP", "CPX", "SBC", "INC", "BBS6",  // 0xe8-0xef
     "BEQ", "SBC", "SBC", "NOP", "NOP", "SBC", "INC", "SMB7",  // 0xf0-0xf7
     "SED", "SBC", "PLX", "NOP", "NOP", "SBC", "INC", "BBS7" // 0xf8-0xff
+];
+
+pub enum AddressingType {
+    IMMEDIATE, ZP, ZP_X, ZP_Y, ABSOLUTE, ABSOLUTE_X, ABSOLUTE_Y, INDIRECT_X, INDIRECT_Y, REGISTER_A,
+    INDIRECT, RELATIVE, ZPI, AIX, NONE,
+}
+
+fn h(v: u8) -> String {
+    return format!("{:02X}", v);
+}
+
+fn hh(v: u16) -> String {
+    return format!("{:X}", v);
+}
+
+impl AddressingType {
+    pub fn to_string(&self, pc: usize, byte: u8, word: u16) -> String {
+        match self {
+            AddressingType::IMMEDIATE => format!("#${}", h(byte)),
+            AddressingType::ZP => format!("${}", h(byte)),
+            AddressingType::ZP_X => format!("${},X", h(byte)),
+            AddressingType::ZP_Y => format!("${},Y", h(byte)),
+            AddressingType::ABSOLUTE => format!("${}", hh(word)),
+            AddressingType::ABSOLUTE_X => format!("${},X", hh(word)),
+            AddressingType::ABSOLUTE_Y => format!("${},Y", hh(word)),
+            AddressingType::INDIRECT_X => format!("(${},X)", hh(word)),
+            AddressingType::INDIRECT_Y => format!("(${}),Y", hh(word)),
+            AddressingType::INDIRECT => format!("(${})", hh(word)),
+            AddressingType::RELATIVE => {
+                let p = pc as u16;
+                let n = if byte >= 0x7f { p - 0x100 + (byte as u16) } else { p + byte as u16 };
+                format!("${}", hh(n + 2))
+            },
+            _ => "".to_string()
+        }
+    }
+}
+
+use AddressingType::*;
+
+pub const ADDRESSING_TYPES: [AddressingType; 256] = [
+    NONE, INDIRECT_X, NONE, NONE,  // 0x00-0x03
+    ZP, ZP, ZP, ZP,  // 0x04-0x07
+    NONE, IMMEDIATE, REGISTER_A, NONE,  // 0x08-0x0b
+    ABSOLUTE, ABSOLUTE, ABSOLUTE, RELATIVE,  // 0x0c-0x0f
+    RELATIVE, INDIRECT_Y, ZPI, NONE,  // 0x10-0x13
+    ZP, ZP_X, ZP_X, ZP,  // 0x14-0x17
+    NONE, ABSOLUTE_Y, NONE, NONE,  // 0x18-0x1b
+    ABSOLUTE, ABSOLUTE_X, ABSOLUTE_X, RELATIVE,  // 0x1c-0x1f
+    ABSOLUTE, INDIRECT_X, NONE, NONE,  // 0x20-0x23
+    ZP, ZP, ZP, ZP,  // 0x24-0x27
+    NONE, IMMEDIATE, REGISTER_A, NONE,  // 0x28-0x2b
+    ABSOLUTE, ABSOLUTE, ABSOLUTE, RELATIVE,  // 0x2c-0x2f
+    RELATIVE, INDIRECT_Y, ZPI, NONE,  // 0x30-0x33
+    ZP_X, ZP_X, ZP_X, ZP,  // 0x34-0x37
+    NONE, ABSOLUTE_Y, NONE, NONE,  // 0x38-0x3b
+    NONE, ABSOLUTE_X, ABSOLUTE_X, RELATIVE,  // 0x3c-0x3f
+    NONE, INDIRECT_X, NONE, NONE,  // 0x40-0x43
+    NONE, ZP, ZP, ZP,  // 0x44-0x47
+    NONE, IMMEDIATE, REGISTER_A, NONE,  // 0x48-0x4b
+    ABSOLUTE, ABSOLUTE, ABSOLUTE, RELATIVE,  // 0x4c-0x4f
+    RELATIVE, INDIRECT_Y, ZPI, NONE,  // 0x50-0x53
+    NONE, ZP_X, ZP_X, ZP,  // 0x54-0x57
+    NONE, ABSOLUTE_Y, NONE, NONE,  // 0x58-0x5b
+    NONE, ABSOLUTE_X, ABSOLUTE_X, RELATIVE,  // 0x5c-0x5f
+    NONE, INDIRECT_X, NONE, NONE,  // 0x60-0x63
+    ZP, ZP, ZP, ZP,  // 0x64-0x67
+    NONE, IMMEDIATE, REGISTER_A, NONE,  // 0x68-0x6b
+    INDIRECT, ABSOLUTE, ABSOLUTE, RELATIVE,  // 0x6c-0x6f
+    RELATIVE, INDIRECT_Y, ZPI, NONE,  // 0x70-0x73
+    ZP_X, ZP_X, ZP_X, ZP,  // 0x74-0x77
+    NONE, ABSOLUTE_Y, NONE, NONE,  // 0x78-0x7b
+    AIX, ABSOLUTE_X, ABSOLUTE_X, RELATIVE,  // 0x7c-0x7f
+    RELATIVE, INDIRECT_X, NONE, NONE,  // 0x80-0x83
+    ZP, ZP, ZP, ZP,  // 0x84-0x87
+    NONE, NONE, NONE, NONE,  // 0x88-0x8b
+    ABSOLUTE, ABSOLUTE, ABSOLUTE, RELATIVE,  // 0x8c-0x8f
+    RELATIVE, INDIRECT_Y, ZPI, NONE,  // 0x90-0x93
+    ZP_X, ZP_X, ZP_Y, ZP,  // 0x94-0x97
+    NONE, ABSOLUTE_Y, NONE, NONE,  // 0x98-0x9b
+    ABSOLUTE, ABSOLUTE_X, ABSOLUTE_X, RELATIVE,  // 0x9c-0x9f
+    IMMEDIATE, INDIRECT_X, IMMEDIATE, NONE,  // 0xa0-0xa3
+    ZP, ZP, ZP, ZP,  // 0xa4-0xa7
+    NONE, IMMEDIATE, NONE, NONE,  // 0xa8-0xab
+    ABSOLUTE, ABSOLUTE, ABSOLUTE, RELATIVE,  // 0xac-0xaf
+    RELATIVE, INDIRECT_Y, ZPI, NONE,  // 0xb0-0xb3
+    ZP_X, ZP_X, ZP_Y, ZP,  // 0xb4-0xb7
+    NONE, ABSOLUTE_Y, NONE, NONE,  // 0xb8-0xbb
+    ABSOLUTE_X, ABSOLUTE_X, ABSOLUTE_Y, RELATIVE,  // 0xbc-0xbf
+    IMMEDIATE, INDIRECT_X, NONE, NONE,  // 0xc0-0xc3
+    ZP, ZP, ZP, ZP,  // 0xc4-0xc7
+    NONE, IMMEDIATE, NONE, NONE,  // 0xc8-0xcb
+    ABSOLUTE, ABSOLUTE, ABSOLUTE, RELATIVE,  // 0xcc-0xcf
+    RELATIVE, INDIRECT_Y, ZPI, NONE,  // 0xd0-0xd3
+    NONE, ZP_X, ZP_X, ZP,  // 0xd4-0xd7
+    NONE, ABSOLUTE_Y, NONE, NONE,  // 0xd8-0xdb
+    NONE, ABSOLUTE_X, ABSOLUTE_X, RELATIVE,  // 0xdc-0xdf
+    IMMEDIATE, INDIRECT_X, NONE, NONE,  // 0xe0-0xe3
+    ZP, ZP, ZP, ZP,  // 0xe4-0xe7
+    NONE, IMMEDIATE, NONE, NONE,  // 0xe8-0xeb
+    ABSOLUTE, ABSOLUTE, ABSOLUTE, RELATIVE,  // 0xec-0xef
+    RELATIVE, INDIRECT_Y, ZPI, NONE,  // 0xf0-0xf3
+    NONE, ZP_X, ZP_X, ZP,  // 0xf4-0xf7
+    NONE, ABSOLUTE_Y, NONE, NONE,  // 0xf8-0xfb
+    NONE, ABSOLUTE_X, ABSOLUTE_X, RELATIVE // 0xfc-0xff
 ];
