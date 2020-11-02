@@ -32,15 +32,12 @@ fn disassemble(buffer: &Vec<u8>, index: usize) -> (String, usize) {
     let size: usize = constants::SIZES[opcode];
     let addressingType = &ADDRESSING_TYPES[opcode];
 
-    let result: String;
-    if size == 1 {
-        result = format!("{:04X}: {}", index, name);
-    } else if size == 2 {
-        result = format!("{:04X}: {} {:}", index, name,
-             addressingType.to_string(index, buffer[index + 1], 0))
-    } else {
-        result = format!("{:04X}: {} {}", index, name,
-            addressingType.to_string(index, buffer[index + 1], word(&buffer, index)));
+    let result: String = match size {
+        1 => format!("{:04X}: {}", index, name),
+        2 => format!("{:04X}: {} {}", index, name,
+             addressingType.to_string(index, buffer[index + 1], 0)),
+        _ => format!("{:04X}: {} {}", index, name,
+            addressingType.to_string(index, buffer[index + 1], word(&buffer, index)))
     };
 
     return (result, size);

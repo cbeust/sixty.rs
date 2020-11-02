@@ -240,13 +240,9 @@ pub enum AddressingType {
     INDIRECT, RELATIVE, ZPI, AIX, NONE,
 }
 
-fn h(v: u8) -> String {
-    return format!("{:02X}", v);
-}
+fn h(v: u8) -> String { format!("{:02X}", v) }
 
-fn hh(v: u16) -> String {
-    return format!("{:X}", v);
-}
+fn hh(v: u16) -> String { format!("{:X}", v) }
 
 impl AddressingType {
     pub fn to_string(&self, pc: usize, byte: u8, word: u16) -> String {
@@ -262,9 +258,7 @@ impl AddressingType {
             AddressingType::INDIRECT_Y => format!("(${}),Y", hh(word)),
             AddressingType::INDIRECT => format!("(${})", hh(word)),
             AddressingType::RELATIVE => {
-                let p = pc as u16;
-                let n = if byte >= 0x7f { p - 0x100 + (byte as u16) } else { p + byte as u16 };
-                format!("${}", hh(n + 2))
+                format!("${}", hh(2 + pc as u16 + byte as u16 - (if byte >= 0x7f {0x100} else {0})))
             },
             _ => "".to_string()
         }
