@@ -1,4 +1,5 @@
 #![allow(unused)]
+#![allow(warnings)]
 
 const BRK: u8 = 0x00;
 
