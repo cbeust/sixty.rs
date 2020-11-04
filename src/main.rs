@@ -10,7 +10,7 @@ fn main() {
     sixty();
 }
 
-trait Memory {
+pub trait Memory {
     fn get(&mut self, index: usize) -> u8;
     fn set(&mut self, index: usize, value: u8);
     fn load(&mut self, file_name: &str);
@@ -58,11 +58,11 @@ impl Memory for SimpleMemory {
 
     fn load(&mut self, file_name: &str) {
         let mut f = File::open(file_name).expect("Couldn't find the file");
-        f.read_to_end(&mut self.buffer);
+        f.read_to_end(&mut self.buffer).expect("Could not find file {}");
     }
 }
 
-fn word(buffer: &Vec<u8>, index: usize) -> u16 {
+fn _word(buffer: &Vec<u8>, index: usize) -> u16 {
     return buffer[index + 1] as u16 | ((buffer[index + 2] as u16) << 8);
 }
 
@@ -71,30 +71,9 @@ fn word2(b0: u8, b1: u8) -> u16 {
 }
 
 fn sixty() {
-
-
-    let mut m = SimpleMemory::new("6502_functional_test.bin");
-    // let mut memory: &'static mut dyn Memory = &mut SimpleMemory::new("6502_functional_test.bin");
-    // let mut memory: &'static mut dyn Memory = &mut SimpleMemory::new("6502_functional_test.bin");
-    // let mut buffer: Vec<u8> = Vec::new();
-    // let mut f = File::open("6502_functional_test.bin").expect("Couldn't find the file");
-    // f.read_to_end(&mut buffer);
-
-    let mut m2 = SimpleMemory {
-        buffer: Vec::new()
-    };
-    let mut m3: SimpleMemory = m2;
-
+    let m = SimpleMemory::new("6502_functional_test.bin");
     let mut cpu = Cpu::new(Box::new(m));
     cpu.run(0x400);
-    // let m = cpu.memory;
-    // let op = m.get(0x400);
-    // let mut i: usize = 0x600;
-    // while i < 0x700 {
-    //     let (s, size) = disassemble(&buffer, i);
-    //     println!("{}", s);
-    //     i += size;
-    // }
 }
 
 fn disassemble3(index: usize, bytes: Vec<u8>) -> (String, usize) {

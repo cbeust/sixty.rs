@@ -10,9 +10,9 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(mem: Box<dyn Memory>) -> Cpu {
+    pub fn new(memory: Box<dyn Memory>) -> Cpu {
         Cpu {
-            memory: mem,
+            memory,
             a: 0,
             x: 0,
             y: 0,
@@ -23,8 +23,10 @@ impl Cpu {
 
     pub fn run(&mut self, pc: usize) {
         self.pc = pc;
+        let max = 10;
+        let mut i = 0;
         loop {
-            let mut opcode = self.memory.get(self.pc);
+            let opcode = self.memory.get(self.pc);
             let (s, size) = self.memory.disassemble(self.pc);
             println!("{}", s);
             // let addressing_type = &ADDRESSING_TYPES[opcode];
@@ -34,6 +36,8 @@ impl Cpu {
                 _ => { println!("Unknown opcode: {:2X}", opcode) }
             }
             self.pc += size;
+            i = i + 1;
+            if i >= max { break };
         }
     }
 }
