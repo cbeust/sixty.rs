@@ -58,6 +58,11 @@ impl StatusFlags {
     fn set_z(&mut self, f: bool) { self.set_bit(f, 1) }
     fn c(&self) -> bool { self.get_bit(0) }
     fn set_c(&mut self, f: bool) { self.set_bit(f, 0) }
+
+    fn set_nz_flags(&mut self, reg: u8) {
+        self.set_z(reg == 0);
+        self.set_n(reg & 0x80 != 0);
+    }
 }
 
 impl fmt::Display for StatusFlags {
@@ -116,5 +121,23 @@ impl Cpu {
             i = i + 1;
             if i >= max { break };
         }
+    }
+
+    fn adc(&mut self, v: u8) {
+        if self.p.d() {
+            unimplemented!("ADD with decimal mode not implemented")
+        } else {
+            self.add(v);
+        }
+    }
+
+    fn add(&mut self, v: u8) {
+        let result: u16 = self.a as u16 + self.p.v() as u16 + self.p.c() as u16;
+        let carry6 = self.a & 0x7f + self.p.v() as u8 & 0x7f + self.p.c() as u8;
+        self.p.set_c(result & 0x100 != 0);
+        self.p.set_v(self.p.c() ^ (carry6 & 0x80 != 0));
+        let result2 = result as u8;
+        self.p.set_nz_flags(result2);
+        self.a = result2;
     }
 }
