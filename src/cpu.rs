@@ -1,7 +1,7 @@
 #![allow(unused)]
 #![allow(warnings)]
 
-use crate::{Memory, constants::*};
+use crate::{Memory, constants::*, word2};
 use std::fmt;
 
 pub struct Cpu {
@@ -101,10 +101,16 @@ impl Cpu {
         self.pc = pc;
         let max = 10;
         let mut i = 0;
+        let byte = self.memory.get(pc + 1);
+        let mut content = || -> u16 { word2(self.memory.get(pc + 1), self.memory.get(pc + 2)) };
         loop {
             let opcode = self.memory.get(self.pc);
             // let addressing_type = &ADDRESSING_TYPES[opcode];
             match opcode {
+                ADC_IMM => self.adc(byte),
+                ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
+                    content();
+                }
                 CLC => self.p.set_c(false),
                 SEC => self.p.set_c(true),
                 CLI => self.p.set_i(false),
