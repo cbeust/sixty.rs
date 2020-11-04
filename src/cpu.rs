@@ -1,4 +1,4 @@
-use crate::{Memory};
+use crate::{Memory, constants::*};
 
 pub struct Cpu {
     pub memory: Box<dyn Memory>,
@@ -24,14 +24,16 @@ impl Cpu {
     pub fn run(&mut self, pc: usize) {
         self.pc = pc;
         loop {
-            let opcode = self.memory.get(pc);
+            let mut opcode = self.memory.get(self.pc);
             let (s, size) = self.memory.disassemble(self.pc);
+            println!("{}", s);
             // let addressing_type = &ADDRESSING_TYPES[opcode];
             match opcode {
-                CLD => println!("CLD"),
+                CLD => { println!("CLD") },
                 // BRK => break,
-                _ => println!("Unknown opcode: {:X}", opcode),
+                _ => { println!("Unknown opcode: {:2X}", opcode) }
             }
+            self.pc += size;
         }
     }
 }
