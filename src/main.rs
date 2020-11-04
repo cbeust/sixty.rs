@@ -18,7 +18,7 @@ trait Memory {
 }
 
 impl dyn Memory {
-    pub fn disassemble(&mut self, index: usize) -> (&str, usize) {
+    pub fn disassemble(&mut self, index: usize) -> (String, usize) {
         let opcode = self.get(index) as usize;
         let size: usize = constants::SIZES[opcode];
         let mut bytes = Vec::new();
@@ -71,13 +71,21 @@ fn word2(b0: u8, b1: u8) -> u16 {
 }
 
 fn sixty() {
-    
-    let mut memory: &'static mut dyn Memory = &mut SimpleMemory::new("6502_functional_test.bin");
+
+
+    let mut m = SimpleMemory::new("6502_functional_test.bin");
+    // let mut memory: &'static mut dyn Memory = &mut SimpleMemory::new("6502_functional_test.bin");
+    // let mut memory: &'static mut dyn Memory = &mut SimpleMemory::new("6502_functional_test.bin");
     // let mut buffer: Vec<u8> = Vec::new();
     // let mut f = File::open("6502_functional_test.bin").expect("Couldn't find the file");
     // f.read_to_end(&mut buffer);
 
-    let mut cpu = Cpu::new(memory);
+    let mut m2 = SimpleMemory {
+        buffer: Vec::new()
+    };
+    let mut m3: SimpleMemory = m2;
+
+    let mut cpu = Cpu::new(Box::new(m));
     cpu.run(0x400);
     // let m = cpu.memory;
     // let op = m.get(0x400);
@@ -89,11 +97,11 @@ fn sixty() {
     // }
 }
 
-fn disassemble3(index: usize, bytes: Vec<u8>) -> (&'static str, usize) {
+fn disassemble3(index: usize, bytes: Vec<u8>) -> (String, usize) {
     let opcode = bytes[0] as usize;
     let name = constants::OPCODE_NAMES[opcode];
     let addressing_type = &ADDRESSING_TYPES[opcode];
-    let result = match bytes.len() {
+    let s = match bytes.len() {
         1 => format!("{:04X}: {:02X}         {}", index,
                      opcode,
                      name),
@@ -107,7 +115,9 @@ fn disassemble3(index: usize, bytes: Vec<u8>) -> (&'static str, usize) {
                      addressing_type.to_string(index, bytes[1], word2(bytes[1], bytes[2])))
     };
 
-    return (result.as_str(), bytes.len());
+    let mut result = String::new();
+    result.push_str(& s);
+    return (result, bytes.len());
 }
 
 // fn disassemble(buffer: &Vec<u8>, index: usize) -> (String, usize) {

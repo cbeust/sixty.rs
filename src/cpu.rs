@@ -1,7 +1,7 @@
 use crate::{Memory};
 
 pub struct Cpu {
-    pub memory: &'static mut dyn Memory,
+    pub memory: Box<dyn Memory>,
     pub a: u8,
     pub x: u8,
     pub y: u8,
@@ -10,7 +10,7 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(mem: &'static mut dyn Memory) -> Cpu {
+    pub fn new(mem: Box<dyn Memory>) -> Cpu {
         Cpu {
             memory: mem,
             a: 0,
