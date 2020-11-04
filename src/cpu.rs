@@ -40,8 +40,8 @@ impl StatusFlags {
     }
 
     fn set_bit(&mut self, f: bool, bit: u8) {
-        if f { self.value = self.value | (1 << bit) }
-        else { self.value = self.value & !(1 << bit) }
+        if f { self.value |= 1 << bit }
+        else { self.value &= !(1 << bit) }
     }
 
     fn n(&self) -> bool { self.get_bit(7) }
