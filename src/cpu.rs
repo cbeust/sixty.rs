@@ -14,8 +14,16 @@ pub struct Cpu {
     pub p: StatusFlags
 }
 
+impl fmt::Display for Cpu {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let registers = std::format!("A={:02X} X={:02X} Y={:02X} S={:02X}",
+            self.a, self.x, self.y, self.sp);
+        write!(f, "{} {}", registers, self.p)
+    }
+}
+
 pub struct StatusFlags {
-    value: u8
+    pub value: u8
 }
 
 impl StatusFlags {
@@ -90,15 +98,20 @@ impl Cpu {
         let mut i = 0;
         loop {
             let opcode = self.memory.get(self.pc);
-            let (s, size) = self.memory.disassemble(self.pc);
-            println!("{}", s);
             // let addressing_type = &ADDRESSING_TYPES[opcode];
             match opcode {
+                CLC => self.p.set_c(false),
+                SEC => self.p.set_c(true),
+                CLI => self.p.set_i(false),
+                SEI => self.p.set_i(true),
                 CLD => self.p.set_d(false),
                 SED => self.p.set_d(true),
+                CLV => self.p.set_v(false),
                 // BRK => break,
-                _ => { println!("Unknown opcode: {:2X}", opcode) }
+                _ => {}// println!("***** Unknown opcode: {:2X}", opcode) }
             }
+            let (s, size) = self.memory.disassemble(self.pc);
+            println!("{:<30} {}", s, self);
             self.pc += size;
             i = i + 1;
             if i >= max { break };
