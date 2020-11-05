@@ -14,6 +14,9 @@ pub trait Memory {
     fn get(&mut self, index: usize) -> u8;
     fn set(&mut self, index: usize, value: u8);
     fn load(&mut self, file_name: &str);
+    fn word(&mut self, address: usize) -> u16 {
+        self.get(address) as u16 | ((self.get(address + 1) as u16) << 8)
+    }
     // fn disassemble(&mut self, index: usize) -> (String, usize);
 }
 

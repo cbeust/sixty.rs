@@ -102,14 +102,28 @@ impl Cpu {
         let max = 10;
         let mut i = 0;
         let byte = self.memory.get(pc + 1);
-        let mut content = || -> u16 { word2(self.memory.get(pc + 1), self.memory.get(pc + 2)) };
+        let word = word2(byte, self.memory.get(pc + 2));
+        let mut timing = 0;
+        let mut memory = &self.memory;
+        // let content = || -> u8 { self.memory.get(word as usize) };
         loop {
+            // let mut bm = Box::new(&self.memory);
             let opcode = self.memory.get(self.pc);
-            // let addressing_type = &ADDRESSING_TYPES[opcode];
+            let addressing_type = &ADDRESSING_TYPES[opcode as usize];
             match opcode {
                 ADC_IMM => self.adc(byte),
                 ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
-                    content();
+                    let (byte, content) = addressing_type.dereference(*memory, pc, self);
+                    self.adc(content);
+                    match opcode {
+                        ADC_IND_Y => {
+
+                        },
+                        ADC_ABS_X | ADC_ABS_Y => {
+
+                        },
+                        _ => { /* ignore */ }
+                    }
                 }
                 CLC => self.p.set_c(false),
                 SEC => self.p.set_c(true),

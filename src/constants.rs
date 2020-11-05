@@ -238,7 +238,7 @@ pub const OPCODE_NAMES: [&str; 256] = [
 
 pub enum AddressingType {
     IMMEDIATE, ZP, ZP_X, ZP_Y, ABSOLUTE, ABSOLUTE_X, ABSOLUTE_Y, INDIRECT_X, INDIRECT_Y, REGISTER_A,
-    INDIRECT, RELATIVE, ZPI, AIX, NONE,
+    INDIRECT, RELATIVE, ZPI, AIX, NONE
 }
 
 fn h(v: u8) -> String { format!("{:02X}", v) }
@@ -264,9 +264,53 @@ impl AddressingType {
             _ => "".to_string()
         }
     }
+
+    // Only used by JMP
+    fn deref16(&self, mut memory: Box<dyn Memory>, pc: usize) -> u16 {
+        let w = memory.word(pc + 1) as usize;
+        memory.word(w)
+    }
+
+    pub fn dereference(&self, mut memory: &mut Box<dyn Memory>, pc: usize, cpu: &Cpu) -> (u16, u8) {
+        match self {
+            ZP => {
+                let byte = memory.get(pc + 1);
+                (byte as u16, memory.get(byte as usize))
+            }
+            ZP_X => {
+                let byte = memory.get(pc + 1) + cpu.x;
+                (byte as u16, memory.get(byte as usize))
+            }
+            ZP_X => {
+                let byte = memory.get(pc + 1) + cpu.y;
+                (byte as u16, memory.get(byte as usize))
+            }
+            ABSOLUTE => {
+                let word = memory.word(pc + 1);
+                (word, memory.get(word as usize))
+            }
+            ABSOLUTE_X => {
+                let word = memory.word(pc + 1) + cpu.x as u16;
+                (word, memory.get(word as usize))
+            }
+            ABSOLUTE_Y => {
+                let word = memory.word(pc + 1) + cpu.y as u16;
+                (word, memory.get(word as usize))
+            }
+            INDIRECT_X => {
+                let byte = memory.get(pc + 1) as usize;
+                let word = memory.word(byte + cpu.x as usize);
+                (word, memory.get(word as usize))
+            }
+            _ => unimplemented!("Unimplemented addressing")
+        }
+    }
+
 }
 
 use AddressingType::*;
+use crate::Memory;
+use crate::cpu::Cpu;
 
 pub const ADDRESSING_TYPES: [AddressingType; 256] = [
     NONE, INDIRECT_X, NONE, NONE,  // 0x00-0x03
