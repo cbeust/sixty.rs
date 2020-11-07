@@ -104,7 +104,6 @@ impl Cpu {
         let byte = self.memory.get(pc + 1);
         let word = word2(byte, self.memory.get(pc + 2));
         let mut timing = 0;
-        let mut memory = &self.memory;
         // let content = || -> u8 { self.memory.get(word as usize) };
         loop {
             // let mut bm = Box::new(&self.memory);
@@ -113,7 +112,7 @@ impl Cpu {
             match opcode {
                 ADC_IMM => self.adc(byte),
                 ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
-                    let (byte, content) = addressing_type.dereference(*memory, pc, self);
+                    let (byte, content) = addressing_type.dereference(&self.memory, pc, self);
                     self.adc(content);
                     match opcode {
                         ADC_IND_Y => {

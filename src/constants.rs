@@ -271,7 +271,7 @@ impl AddressingType {
         memory.word(w)
     }
 
-    pub fn dereference(&self, mut memory: &mut Box<dyn Memory>, pc: usize, cpu: &Cpu) -> (u16, u8) {
+    pub fn dereference(&self, memory: &Box<dyn Memory>, pc: usize, cpu: &Cpu) -> (u16, u8) {
         match self {
             ZP => {
                 let byte = memory.get(pc + 1);
