@@ -95,26 +95,28 @@ impl Cpu {
         }
     }
 
-    pub fn run(&mut self, pc: usize) {
+    pub fn run(&mut self, start_pc: usize) {
         self.p.set(0xff);
         println!("Current p: {}", self.p);
-        self.pc = pc;
+        self.pc = start_pc;
         let max = 10;
         let mut i = 0;
-        let byte = self.memory.get(pc + 1);
-        let word = word2(byte, self.memory.get(pc + 2));
+        // let byte = self.memory.get(self.pc + 1);
+        // let word = word2(byte, self.memory.get(self.pc + 2));
         let mut timing = 0;
         // let content = || -> u8 { self.memory.get(word as usize) };
         loop {
             // let mut bm = Box::new(&self.memory);
-            let opcode = self.memory.get(self.pc);
+            let pc = self.pc;
+            let opcode = self.memory.get(pc);
             let addressing_type = &ADDRESSING_TYPES[opcode as usize];
             match opcode {
-                ADC_IMM => self.adc(byte),
+                ADC_IMM => self.adc(self.memory.get(self.pc + 1)),
                 ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
                     let (effectiveAddress, content) =
                         addressing_type.dereference(&self.memory, pc, self);
                     self.adc(content);
+
                     match opcode {
                         ADC_IND_Y => {
                             timing += self.page_crossed(
@@ -126,7 +128,43 @@ impl Cpu {
                                 self.memory.word(pc - 2 as usize),
                                 effectiveAddress);
                         },
-                        _ => { /* ignore */ }
+                        _ => {}
+                    }
+                },
+                LDX_IMM => {
+                    self.x = self.memory.get(pc + 1);
+                    self.p.set_nz_flags(self.x);
+                },
+                LDX_ZP | LDX_ZP_Y | LDX_ABS | LDX_ABS_Y => {
+                    let (effectiveAddress, content) =
+                        addressing_type.dereference(&self.memory, pc, self);
+                    self.x = content;
+                    self.p.set_nz_flags(self.x);
+                    match opcode {
+                        LDX_ABS_X => {
+                            timing += self.page_crossed(
+                                self.memory.word(pc - 2 as usize),
+                                effectiveAddress);
+                        },
+                        _ => {}
+                    }
+                }
+                LDY_IMM => {
+                    self.y = self.memory.get(pc + 1);
+                    self.p.set_nz_flags(self.y);
+                },
+                LDY_ZP | LDY_ZP_X | LDY_ABS | LDY_ABS_X => {
+                    let (effectiveAddress, content) =
+                        addressing_type.dereference(&self.memory, pc, self);
+                    self.y = content;
+                    self.p.set_nz_flags(self.y);
+                    match opcode {
+                        LDY_ABS_X => {
+                            timing += self.page_crossed(
+                                self.memory.word(pc - 2 as usize),
+                                effectiveAddress);
+                        },
+                        _ => {}
                     }
                 }
                 CLC => self.p.set_c(false),
@@ -139,7 +177,7 @@ impl Cpu {
                 // BRK => break,
                 _ => {}// println!("***** Unknown opcode: {:2X}", opcode) }
             }
-            let (s, size) = self.memory.disassemble(self.pc);
+            let (s, size) = self.memory.disassemble(pc);
             println!("{:<30} {}", s, self);
             self.pc += size;
             i = i + 1;
