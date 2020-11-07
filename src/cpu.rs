@@ -112,14 +112,19 @@ impl Cpu {
             match opcode {
                 ADC_IMM => self.adc(byte),
                 ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
-                    let (byte, content) = addressing_type.dereference(&self.memory, pc, self);
+                    let (effectiveAddress, content) =
+                        addressing_type.dereference(&self.memory, pc, self);
                     self.adc(content);
                     match opcode {
                         ADC_IND_Y => {
-
+                            timing += self.page_crossed(
+                                self.memory.word(self.memory.word(pc - 1) as usize),
+                                effectiveAddress);
                         },
                         ADC_ABS_X | ADC_ABS_Y => {
-
+                            timing += self.page_crossed(
+                                self.memory.word(pc - 2 as usize),
+                                effectiveAddress);
                         },
                         _ => { /* ignore */ }
                     }
@@ -140,6 +145,10 @@ impl Cpu {
             i = i + 1;
             if i >= max { break };
         }
+    }
+
+    fn page_crossed(&self, old: u16, new: u16) -> u8 {
+        if ((old ^ new) & 0xff00) > 0 { 1 } else { 0 }
     }
 
     fn adc(&mut self, v: u8) {
