@@ -1,6 +1,9 @@
 #![allow(unused)]
 #![allow(warnings)]
 
+pub(crate) const IRQ_VECTOR_L: usize = 0xfffe;
+pub(crate) const IRQ_VECTOR_H: usize = 0xffff;
+
 pub const BRK: u8 = 0x00;
 
 pub const ADC_IMM: u8 = 0x69;
@@ -271,7 +274,7 @@ impl AddressingType {
         memory.word(w)
     }
 
-    pub fn address(&self, memory: &Box<dyn Memory>, pc: usize, cpu: &Cpu) -> usize {
+    pub fn address(&self, memory: &dyn Memory, pc: usize, cpu: &Cpu) -> usize {
         match self {
             ZP => memory.get(pc + 1) as usize,
             ZP_X => (memory.get(pc + 1) + cpu.x) as usize,

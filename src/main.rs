@@ -10,7 +10,29 @@ fn main() {
     sixty();
 }
 
-pub trait Memory {
+pub struct StackPointer {
+    s: usize
+}
+
+impl StackPointer {
+    const ADDRESS: usize = 0x100;
+
+    fn inc(&mut self) { self.s = self.s + 1; }
+    fn dec(&mut self) { self.s = self.s - 1; }
+
+    fn push_word(&mut self, memory: &mut Box<dyn Memory>, a: u16) {
+        memory.set(StackPointer::ADDRESS + self.s, ((a & 0xff00) >> 8) as u8);
+        self.dec();
+        memory.set(StackPointer::ADDRESS + self.s, (a & 0xff) as u8);
+    }
+
+    fn push_byte(&mut self, memory: &mut Box<dyn Memory>, a: u8) {
+        memory.set(StackPointer::ADDRESS + self.s, a);
+        self.inc();
+    }
+}
+
+pub trait Memory<'a> {
     fn get(&self, index: usize) -> u8;
     fn set(&mut self, index: usize, value: u8);
     fn load(&mut self, file_name: &str);
@@ -20,7 +42,7 @@ pub trait Memory {
     // fn disassemble(&mut self, index: usize) -> (String, usize);
 }
 
-impl dyn Memory {
+impl dyn Memory<'_> {
     pub fn disassemble(&mut self, index: usize) -> (String, usize) {
         let opcode = self.get(index) as usize;
         let size: usize = constants::SIZES[opcode];
@@ -50,7 +72,7 @@ impl SimpleMemory {
     }
 }
 
-impl Memory for SimpleMemory {
+impl Memory<'_> for SimpleMemory {
     fn get(&self, index: usize) -> u8 {
         self.buffer[index]
     }
@@ -75,7 +97,7 @@ fn word2(b0: u8, b1: u8) -> u16 {
 
 fn sixty() {
     let m = SimpleMemory::new("6502_functional_test.bin");
-    let mut cpu = Cpu::new(Box::new(m));
+    let mut cpu = Cpu::new(&m);
     cpu.run(0x400);
 }
 
