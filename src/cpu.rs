@@ -104,32 +104,49 @@ impl Cpu {
         // let byte = self.memory.get(self.pc + 1);
         // let word = word2(byte, self.memory.get(self.pc + 2));
         let mut timing = 0;
-        // let content = || -> u8 { self.memory.get(word as usize) };
+
         loop {
             // let mut bm = Box::new(&self.memory);
             let pc = self.pc;
             let opcode = self.memory.get(pc);
             let addressing_type = &ADDRESSING_TYPES[opcode as usize];
+
+            fn runInst(opcode: u8, cpu: &mut Cpu, pc: usize, address: usize,
+                          ind_y: u8, abs_x: u8, abs_y: u8) -> u8 {
+                cpu.p.set_nz_flags(cpu.a);
+                let result =
+                    if opcode == ind_y {
+                        cpu.page_crossed(cpu.memory.word(cpu.memory.get(pc - 1) as usize), address)
+                    } else if opcode == abs_x || opcode == abs_y {
+                        cpu.page_crossed(cpu.memory.word(pc - 2), address)
+                    } else {
+                        0
+                    };
+                result
+            }
+
             match opcode {
                 ADC_IMM => self.adc(self.memory.get(self.pc + 1)),
                 ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
                     let address = addressing_type.address(&self.memory, pc, self);
+                    self.adc(self.memory.get(address));
+                    timing += runInst(opcode, self, pc, address, ADC_IND_Y, ADC_ABS_X, ADC_ABS_Y);
+                },
+                AND_IMM => {
+                    self.a = self.a & self.memory.get(pc + 1);
+                    self.p.set_nz_flags(self.a);
+                },
+                AND_ZP | AND_ZP_X | AND_ABS | AND_ABS_X | AND_ABS_Y | AND_IND_X | AND_IND_Y => {
+                    let address = addressing_type.address(&self.memory, pc, self);
                     let content = self.memory.get(address);
-                    self.adc(content);
-
-                    match opcode {
-                        ADC_IND_Y => {
-                            timing += self.page_crossed(
-                                self.memory.word(self.memory.word(pc - 1) as usize),
-                                address);
-                        },
-                        ADC_ABS_X | ADC_ABS_Y => {
-                            timing += self.page_crossed(
-                                self.memory.word(pc - 2 as usize),
-                                address);
-                        },
-                        _ => {}
-                    }
+                    self.a &= content;
+                    timing += runInst(opcode, self, pc, address, AND_IND_Y, AND_ABS_X, AND_ABS_Y);
+                },
+                ASL => self.a = self.asl(self.a),
+                ASL_ZP | ASL_ZP_X | ASL_ABS | ASL_ABS_X => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    let result = self.asl(self.memory.get(address));
+                    self.memory.set(address, result);
                 },
                 LDX_IMM => {
                     self.x = self.memory.get(pc + 1);
@@ -187,6 +204,13 @@ impl Cpu {
 
     fn page_crossed(&self, old: u16, new: usize) -> u8 {
         if ((old ^ new as u16) & 0xff00) > 0 { 1 } else { 0 }
+    }
+
+    fn asl(&mut self, v: u8) -> u8 {
+        self.p.set_c(self.p.v() as u8 & 0x80 != 0);
+        let result: u8 = (self.p.v() as u8) << 1;
+        self.p.set_nz_flags(result);
+        return result;
     }
 
     fn adc(&mut self, v: u8) {
