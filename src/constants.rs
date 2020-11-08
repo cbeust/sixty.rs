@@ -271,41 +271,20 @@ impl AddressingType {
         memory.word(w)
     }
 
-    pub fn dereference(&self, memory: &Box<dyn Memory>, pc: usize, cpu: &Cpu) -> (u16, u8) {
+    pub fn address(&self, memory: &Box<dyn Memory>, pc: usize, cpu: &Cpu) -> usize {
         match self {
-            ZP => {
-                let byte = memory.get(pc + 1);
-                (byte as u16, memory.get(byte as usize))
-            }
-            ZP_X => {
-                let byte = memory.get(pc + 1) + cpu.x;
-                (byte as u16, memory.get(byte as usize))
-            }
-            ZP_X => {
-                let byte = memory.get(pc + 1) + cpu.y;
-                (byte as u16, memory.get(byte as usize))
-            }
-            ABSOLUTE => {
-                let word = memory.word(pc + 1);
-                (word, memory.get(word as usize))
-            }
-            ABSOLUTE_X => {
-                let word = memory.word(pc + 1) + cpu.x as u16;
-                (word, memory.get(word as usize))
-            }
-            ABSOLUTE_Y => {
-                let word = memory.word(pc + 1) + cpu.y as u16;
-                (word, memory.get(word as usize))
-            }
-            INDIRECT_X => {
-                let byte = memory.get(pc + 1) as usize;
-                let word = memory.word(byte + cpu.x as usize);
-                (word, memory.get(word as usize))
-            }
-            _ => unimplemented!("Unimplemented addressing")
+            ZP => memory.get(pc + 1) as usize,
+            ZP_X => (memory.get(pc + 1) + cpu.x) as usize,
+            ZP_Y => (memory.get(pc + 1) + cpu.y) as usize,
+            ABSOLUTE => memory.word(pc + 1) as usize,
+            ABSOLUTE_X => (memory.word(pc + 1) + cpu.x as u16) as usize,
+            ABSOLUTE_Y => (memory.word(pc + 1) + cpu.y as u16) as usize,
+            INDIRECT => memory.word(pc + 1) as usize,
+            INDIRECT_X => memory.word((memory.get(pc + 1) + cpu.x) as usize) as usize,
+            INDIRECT_Y => (memory.word(memory.get(pc + 1) as usize) + cpu.y as u16) as usize,
+            IMMEDIATE | RELATIVE | ZPI | REGISTER_A | AIX | NONE => 0
         }
     }
-
 }
 
 use AddressingType::*;
