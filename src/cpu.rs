@@ -175,6 +175,38 @@ impl <'a> Cpu {
                     self.cmp(self.a, self.memory.get(
                         addressing_type.address(&self.memory, pc, self)));
                 },
+                CPX_IMM => self.cmp(self.x, self.memory.get(pc + 1)),
+                CPX_ZP | CPX_ABS => {
+                    self.cmp(self.x, self.memory.get(
+                        addressing_type.address(&self.memory, pc, self)));
+                },
+                CPY_IMM => self.cmp(self.y, self.memory.get(pc + 1)),
+                CPY_ZP | CPY_ABS => {
+                    self.cmp(self.y, self.memory.get(
+                        addressing_type.address(&self.memory, pc, self)));
+                },
+                DEC_ZP| DEC_ZP_X| DEC_ABS| DEC_ABS_X => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    let new_value = self.memory.get(address) - 1;
+                    self.memory.set(address, new_value);
+                    self.p.set_nz_flags(new_value);
+                },
+                EOR_IMM => {
+                    self.a = self.a ^ self.memory.get(pc + 1);
+                    self.p.set_nz_flags(self.a);
+                },
+                EOR_ZP| EOR_ZP_X| EOR_ABS| EOR_ABS_X| EOR_ABS_Y| EOR_IND_Y| EOR_IND_X => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    self.a = self.a ^ self.memory.get(address);
+                    self.p.set_nz_flags(self.a);
+                },
+                CLC => self.p.set_c(false),
+                SEC => self.p.set_c(true),
+                CLI => self.p.set_i(false),
+                SETI => self.p.set_i(true),
+                CLD => self.p.set_d(false),
+                SED => self.p.set_d(true),
+                CLV => self.p.set_v(false),
                 LDX_ZP | LDX_ZP_Y | LDX_ABS | LDX_ABS_Y => {
                     let address = addressing_type.address(&self.memory, pc, self);
                     let content = self.memory.get(address);
@@ -188,7 +220,50 @@ impl <'a> Cpu {
                         },
                         _ => {}
                     }
-                }
+                },
+                INC_ZP | INC_ZP_X | INC_ABS | INC_ABS_X => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    let content = self.memory.get(address);
+                    let word = self.memory.word(pc + 1);
+                    let new_value = content + 1;
+                    self.memory.set(address, content);
+                    self.p.set_nz_flags(new_value);
+                },
+                JMP => self.pc = self.memory.word(pc + 1) as usize,
+                JMP_IND => {
+                    self.pc = self.memory.word(addressing_type.address(&self.memory, pc, self))
+                        as usize
+                },
+                JSR => {
+                    self.sp.push_word(&mut self.memory, self.pc as u16 - 1);
+                    self.pc = self.memory.word(pc + 1) as usize;
+                },
+                LDA_IMM => {
+                    self.a = self.memory.get(self.pc + 1);
+                },
+                LDA_ZP| LDA_ZP_X| LDA_ABS| LDA_ABS_X| LDA_ABS_Y| LDA_IND_X| LDA_IND_Y => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    self.a = self.memory.get(address);
+                    self.p.set_nz_flags(self.a);
+                },
+                LDX_IMM => {
+                    self.x = self.memory.get(pc + 1);
+                    self.p.set_nz_flags(self.x);
+                },
+                LDX_ZP | LDX_ZP_Y | LDX_ABS | LDX_ABS_Y => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    let content = self.memory.get(address);
+                    self.x = content;
+                    self.p.set_nz_flags(self.x);
+                    match opcode {
+                        LDX_ABS_Y => {
+                            timing += self.page_crossed(
+                                self.memory.word(pc - 2 as usize),
+                                address);
+                        },
+                        _ => {}
+                    }
+                },
                 LDY_IMM => {
                     self.y = self.memory.get(pc + 1);
                     self.p.set_nz_flags(self.y);
@@ -206,6 +281,57 @@ impl <'a> Cpu {
                         },
                         _ => {}
                     }
+                },
+                LSR => self.a = self.lsr(self.a),
+                LSR_ZP| LSR_ZP_X| LSR_ABS| LSR_ABS_X => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    let new_value = self.lsr(self.memory.get(address));
+                    self.memory.set(address, new_value);
+                },
+                NOP => {},
+                ORA_IMM => {
+                    self.a = self.a | self.memory.get(pc + 1);
+                    self.p.set_nz_flags(self.a);
+                },
+                ORA_ZP| ORA_ZP_X| ORA_ABS| ORA_ABS_X| ORA_ABS_Y| ORA_IND_X| ORA_IND_Y => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    self.a = self.a | self.memory.get(address);
+                    self.p.set_nz_flags(self.a);
+                },
+                TAX => {
+                    self.x = self.a;
+                    self.p.set_nz_flags(self.x);
+                },
+                TXA => {
+                    self.a = self.x;
+                    self.p.set_nz_flags(self.a);
+                },
+                DEX => {
+                    self.x -= 1;
+                    self.p.set_nz_flags(self.x);
+                },
+                INX => {
+                    self.x += 1;
+                    self.p.set_nz_flags(self.x);
+                },
+                TAY => {
+                    self.y = self.a;
+                    self.p.set_nz_flags(self.y);
+                },
+                TYA => {
+                    self.a = self.y;
+                    self.p.set_nz_flags(self.a);
+                },
+                DEY => {
+                    self.y -= 1;
+                    self.p.set_nz_flags(self.y);
+                },
+                INY => {
+                    self.y += 1;
+                    self.p.set_nz_flags(self.y);
+                },
+                ROL => {
+                    self.a = self.rol(self.a);
                 }
                 CLC => self.p.set_c(false),
                 SEC => self.p.set_c(true),
@@ -228,6 +354,21 @@ impl <'a> Cpu {
             i = i + 1;
             if i >= max { break };
         }
+    }
+
+    fn rol(&mut self, v: u8) -> u8 {
+        let result = (v << 1) | self.p.c() as u8;
+        self.p.set_c(v & 0x80 != 0);
+        self.p.set_nz_flags(result);
+        result
+    }
+
+    fn lsr(&mut self, v: u8) -> u8 {
+        let bit0 = v & 1;
+        self.p.set_c(bit0 != 0);
+        let result = v >> 1;
+        self.p.set_nz_flags(result);
+        result
     }
 
     fn cmp(&mut self, register: u8, v: u8) {
