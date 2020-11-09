@@ -4,6 +4,9 @@
 use crate::{Memory, constants::*, word2, StackPointer};
 use std::fmt;
 
+const DEBUG_ASM: bool = false;
+const DEBUG_PC: usize = 1504;
+
 pub struct StatusFlags {
     pub value: u8
 }
@@ -355,6 +358,10 @@ impl <'a> Cpu {
                 self.p.set_nz_flags(self.x);
             },
             PHA => self.sp.push_byte(&mut self.memory, self.a),
+            PLA => {
+                self.a = self.sp.pop_byte(&mut self.memory);
+                self.p.set_nz_flags(self.a);
+            },
             PHP => {
                 self.p.set_b(true);
                 self.p.set_reserved(true);
@@ -373,7 +380,7 @@ impl <'a> Cpu {
                 panic!("Unknown opcode");
             }
         }
-        // println!("{:<30} {}", s, self);
+        if DEBUG_ASM || self.pc > DEBUG_PC - 20 { println!("{:<30} {}", s, self) }
         // i = i + 1;
         // if i >= max { break };
     }
@@ -405,10 +412,11 @@ impl <'a> Cpu {
         if register < v {
             println!("PANIC!");
         }
-        let tmp = (register - v) & 0xff;
+        let tmp: i8 = register as i8 - v as i8;
+        // let tmp = (register - v) & 0xff;
         self.p.set_c(register >= v);
         self.p.set_z(tmp == 0);
-        self.p.set_n(tmp & 0x80 != 0);
+        self.p.set_n(tmp < 0);
     }
 
     fn handleInterrupt(&mut self, brk: bool, vector_high: usize, vector_low: usize) {

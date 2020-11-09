@@ -20,20 +20,21 @@ impl StackPointer {
     fn inc(&mut self) { self.s = self.s + 1; }
     fn dec(&mut self) { if self.s == 0 { self.s = 0xff as usize } else { self.s = self.s - 1; } }
 
-    fn push_word(&mut self, memory: &mut Box<dyn Memory>, a: u16) {
-        memory.set(StackPointer::ADDRESS + self.s, ((a & 0xff00) >> 8) as u8);
-        self.dec();
-        memory.set(StackPointer::ADDRESS + self.s, (a & 0xff) as u8);
-    }
-
     fn push_byte(&mut self, memory: &mut Box<dyn Memory>, a: u8) {
         memory.set(StackPointer::ADDRESS + self.s, a);
-        self.inc();
+        self.dec();
     }
 
     fn pop_byte(&mut self, memory: &Box<dyn Memory>) -> u8 {
         self.inc();
         memory.get(StackPointer::ADDRESS + self.s)
+    }
+
+    fn push_word(&mut self, memory: &mut Box<dyn Memory>, a: u16) {
+        memory.set(StackPointer::ADDRESS + self.s, ((a & 0xff00) >> 8) as u8);
+        self.dec();
+        memory.set(StackPointer::ADDRESS + self.s, (a & 0xff) as u8);
+        self.dec();
     }
 
     fn pop_word(&mut self, memory: &Box<dyn Memory>) -> usize {
