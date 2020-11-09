@@ -17,7 +17,7 @@ pub struct StackPointer {
 impl StackPointer {
     const ADDRESS: usize = 0x100;
 
-    fn inc(&mut self) { self.s = self.s + 1; }
+    fn inc(&mut self) { if self.s == 0xff { self.s = 0 } else { self.s = self.s + 1; } }
     fn dec(&mut self) { if self.s == 0 { self.s = 0xff as usize } else { self.s = self.s - 1; } }
 
     fn push_byte(&mut self, memory: &mut Box<dyn Memory>, a: u8) {

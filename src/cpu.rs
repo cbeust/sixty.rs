@@ -5,7 +5,7 @@ use crate::{Memory, constants::*, word2, StackPointer};
 use std::fmt;
 
 const DEBUG_ASM: bool = false;
-const DEBUG_PC: usize = 1504;
+const DEBUG_PC: usize = 14218;
 
 pub struct StatusFlags {
     pub value: u8
@@ -83,6 +83,8 @@ impl fmt::Display for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let registers = std::format!("A={:02X} X={:02X} Y={:02X} S={:02X}",
                                      self.a, self.x, self.y, self.sp.s as u8);
+        // Desired format:
+        // 00000000| 05E0: D0 FE      BNE  $05E0       (2) A=AA X=FF Y=00 S=FD P=03 PC=$5E2 P=$03 {---- --ZC} SP={$FD stack:[$1FF:$55 $1FE:$AA ]}
         write!(f, "{} {}", registers, self.p)
     }
 }
@@ -105,7 +107,10 @@ impl <'a> Cpu {
         let mut previous_pc = 0;
         loop {
             if previous_pc != 0 && previous_pc == self.pc {
-                println!("Infinite loop!");
+                println!("Infinite loop at PC {:2X}", self.pc);
+                println!("");
+            } else if self.pc == 0x346c || self.pc == 0x3469 {
+                println!("ALL TESTS PASSED!");
             } else {
                 previous_pc = self.pc;
                 let opcode = self.memory.get(self.pc);
@@ -125,10 +130,9 @@ impl <'a> Cpu {
         // let mut bm = Box::new(&self.memory);
         let opcode = self.memory.get(pc);
         let addressing_type = &ADDRESSING_TYPES[opcode as usize];
-        let (s, size) = self.memory.disassemble(pc);
 
         fn runInst(opcode: u8, cpu: &mut Cpu, pc: usize, address: usize,
-                      ind_y: u8, abs_x: u8, abs_y: u8) -> u8 {
+                   ind_y: u8, abs_x: u8, abs_y: u8) -> u8 {
             cpu.p.set_nz_flags(cpu.a);
             let result =
                 if opcode == ind_y {
@@ -380,7 +384,10 @@ impl <'a> Cpu {
                 panic!("Unknown opcode");
             }
         }
-        if DEBUG_ASM || self.pc > DEBUG_PC - 20 { println!("{:<30} {}", s, self) }
+        if DEBUG_ASM || self.pc > DEBUG_PC - 100 {
+            let (s, size) = self.memory.disassemble(pc);
+            println!("{:<30} {}", s, self);
+        }
         // i = i + 1;
         // if i >= max { break };
     }
@@ -409,9 +416,6 @@ impl <'a> Cpu {
     }
 
     fn cmp(&mut self, register: u8, v: u8) {
-        if register < v {
-            println!("PANIC!");
-        }
         let tmp: i8 = register as i8 - v as i8;
         // let tmp = (register - v) & 0xff;
         self.p.set_c(register >= v);
