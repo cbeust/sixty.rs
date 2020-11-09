@@ -96,14 +96,15 @@ impl <'a> Cpu {
     }
 
     pub fn run(&mut self, start_pc: usize) {
-        self.p.set(0xff);
-        println!("Current p: {}", self.p);
+        // self.p.set(0xff);
+        // println!("Current p: {}", self.p);
         self.pc = start_pc;
         let max = 10;
         let mut i = 0;
         // let byte = self.memory.get(self.pc + 1);
         // let word = word2(byte, self.memory.get(self.pc + 2));
         let mut timing = 0;
+        let mut previous_pc = 0;
 
         loop {
             // let mut bm = Box::new(&self.memory);
@@ -169,6 +170,11 @@ impl <'a> Cpu {
                 BVC => { timing += self.branch(self.memory.get(pc + 1), ! self.p.v()) },
                 BVS => { timing += self.branch(self.memory.get(pc + 1), self.p.v()) },
                 BRK => self.handleInterrupt(true, IRQ_VECTOR_H, IRQ_VECTOR_L),
+                CMP_IMM => self.cmp(self.a, self.memory.get(pc + 1)),
+                CMP_ZP| CMP_ZP_X| CMP_ABS| CMP_ABS_X| CMP_ABS_Y| CMP_IND_X| CMP_IND_Y => {
+                    self.cmp(self.a, self.memory.get(
+                        addressing_type.address(&self.memory, pc, self)));
+                },
                 LDX_ZP | LDX_ZP_Y | LDX_ABS | LDX_ABS_Y => {
                     let address = addressing_type.address(&self.memory, pc, self);
                     let content = self.memory.get(address);
@@ -214,9 +220,21 @@ impl <'a> Cpu {
             let (s, size) = self.memory.disassemble(pc);
             println!("{:<30} {}", s, self);
             self.pc += size;
+            if previous_pc == self.pc {
+                println!("Infinite loop!");
+            } else {
+                previous_pc = self.pc;
+            }
             i = i + 1;
             if i >= max { break };
         }
+    }
+
+    fn cmp(&mut self, register: u8, v: u8) {
+        let tmp = (register - v) & 0xff;
+        self.p.set_c(register >= v);
+        self.p.set_z(tmp == 0);
+        self.p.set_n(tmp & 0x80 != 0);
     }
 
     fn handleInterrupt(&mut self, brk: bool, vector_high: usize, vector_low: usize) {
