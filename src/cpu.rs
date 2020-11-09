@@ -98,15 +98,16 @@ impl <'a> Cpu {
     }
 
     pub fn run(&mut self, start_pc: usize) {
+        self.pc = start_pc;
         let mut previous_pc = 0;
         loop {
-            if previous_pc == self.pc {
+            if previous_pc != 0 && previous_pc == self.pc {
                 println!("Infinite loop!");
             } else {
                 previous_pc = self.pc;
                 let opcode = self.memory.get(self.pc);
-                self.pc = self.pc + SIZES[opcode as usize];
-                self.next_instruction(self.pc);
+                self.pc += SIZES[opcode as usize];
+                self.next_instruction(previous_pc);
             }
         }
     }
@@ -137,10 +138,13 @@ impl <'a> Cpu {
             result
         }
 
+        // if pc == 0x4e5 {
+        //     println!("BREAKPOINT");
+        // }
         match opcode {
             ADC_IMM => self.adc(self.memory.get(pc + 1)),
             ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 self.adc(self.memory.get(address));
                 timing += runInst(opcode, self, pc, address, ADC_IND_Y, ADC_ABS_X, ADC_ABS_Y);
             },
@@ -149,28 +153,24 @@ impl <'a> Cpu {
                 self.p.set_nz_flags(self.a);
             },
             AND_ZP | AND_ZP_X | AND_ABS | AND_ABS_X | AND_ABS_Y | AND_IND_X | AND_IND_Y => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let content = self.memory.get(address);
                 self.a &= content;
                 timing += runInst(opcode, self, pc, address, AND_IND_Y, AND_ABS_X, AND_ABS_Y);
             },
             ASL => self.a = self.asl(self.a),
             ASL_ZP | ASL_ZP_X | ASL_ABS | ASL_ABS_X => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let result = self.asl(self.memory.get(address));
                 self.memory.set(address, result);
             },
             BIT_ZP | BIT_ABS => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let content = self.memory.get(address);
                 let v = self.p.v() as u8;
                 self.p.set_z(v & self.a == 0);
                 self.p.set_n(v & 0x80 != 0);
                 self.p.set_v(v & 0x40 != 0);
-            },
-            LDX_IMM => {
-                self.x = self.memory.get(pc + 1);
-                self.p.set_nz_flags(self.x);
             },
             BPL => { timing += self.branch(self.memory.get(pc + 1), ! self.p.n()) },
             BMI => { timing += self.branch(self.memory.get(pc + 1), self.p.n()) },
@@ -184,20 +184,20 @@ impl <'a> Cpu {
             CMP_IMM => self.cmp(self.a, self.memory.get(pc + 1)),
             CMP_ZP| CMP_ZP_X| CMP_ABS| CMP_ABS_X| CMP_ABS_Y| CMP_IND_X| CMP_IND_Y => {
                 self.cmp(self.a, self.memory.get(
-                    addressing_type.address(&self.memory, pc, self)));
+                    addressing_type.address(pc, self)));
             },
             CPX_IMM => self.cmp(self.x, self.memory.get(pc + 1)),
             CPX_ZP | CPX_ABS => {
                 self.cmp(self.x, self.memory.get(
-                    addressing_type.address(&self.memory, pc, self)));
+                    addressing_type.address(pc, self)));
             },
             CPY_IMM => self.cmp(self.y, self.memory.get(pc + 1)),
             CPY_ZP | CPY_ABS => {
                 self.cmp(self.y, self.memory.get(
-                    addressing_type.address(&self.memory, pc, self)));
+                    addressing_type.address(pc, self)));
             },
             DEC_ZP| DEC_ZP_X| DEC_ABS| DEC_ABS_X => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let new_value = self.memory.get(address) - 1;
                 self.memory.set(address, new_value);
                 self.p.set_nz_flags(new_value);
@@ -207,7 +207,7 @@ impl <'a> Cpu {
                 self.p.set_nz_flags(self.a);
             },
             EOR_ZP| EOR_ZP_X| EOR_ABS| EOR_ABS_X| EOR_ABS_Y| EOR_IND_Y| EOR_IND_X => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 self.a = self.a ^ self.memory.get(address);
                 self.p.set_nz_flags(self.a);
             },
@@ -218,22 +218,8 @@ impl <'a> Cpu {
             CLD => self.p.set_d(false),
             SED => self.p.set_d(true),
             CLV => self.p.set_v(false),
-            LDX_ZP | LDX_ZP_Y | LDX_ABS | LDX_ABS_Y => {
-                let address = addressing_type.address(&self.memory, pc, self);
-                let content = self.memory.get(address);
-                self.x = content;
-                self.p.set_nz_flags(self.x);
-                match opcode {
-                    LDX_ABS_X => {
-                        timing += self.page_crossed(
-                            self.memory.word(pc - 2 as usize),
-                            address);
-                    },
-                    _ => {}
-                }
-            },
             INC_ZP | INC_ZP_X | INC_ABS | INC_ABS_X => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let content = self.memory.get(address);
                 let word = self.memory.word(pc + 1);
                 let new_value = content + 1;
@@ -242,18 +228,23 @@ impl <'a> Cpu {
             },
             JMP => self.pc = self.memory.word(pc + 1) as usize,
             JMP_IND => {
-                self.pc = self.memory.word(addressing_type.address(&self.memory, pc, self))
+                self.pc = self.memory.word(addressing_type.address(pc, self))
                     as usize
             },
             JSR => {
                 self.sp.push_word(&mut self.memory, pc as u16 - 1);
                 self.pc = self.memory.word(pc + 1) as usize;
             },
+            LDX_IMM => {
+                self.x = self.memory.get(pc + 1);
+                self.p.set_nz_flags(self.x);
+            },
             LDA_IMM => {
                 self.a = self.memory.get(pc + 1);
+                self.p.set_nz_flags(self.a);
             },
             LDA_ZP| LDA_ZP_X| LDA_ABS| LDA_ABS_X| LDA_ABS_Y| LDA_IND_X| LDA_IND_Y => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 self.a = self.memory.get(address);
                 self.p.set_nz_flags(self.a);
             },
@@ -262,40 +253,24 @@ impl <'a> Cpu {
                 self.p.set_nz_flags(self.x);
             },
             LDX_ZP | LDX_ZP_Y | LDX_ABS | LDX_ABS_Y => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let content = self.memory.get(address);
                 self.x = content;
                 self.p.set_nz_flags(self.x);
-                match opcode {
-                    LDX_ABS_Y => {
-                        timing += self.page_crossed(
-                            self.memory.word(pc - 2 as usize),
-                            address);
-                    },
-                    _ => {}
-                }
             },
             LDY_IMM => {
                 self.y = self.memory.get(pc + 1);
                 self.p.set_nz_flags(self.y);
             },
             LDY_ZP | LDY_ZP_X | LDY_ABS | LDY_ABS_X => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let content = self.memory.get(address);
                 self.y = content;
                 self.p.set_nz_flags(self.y);
-                match opcode {
-                    LDY_ABS_X => {
-                        timing += self.page_crossed(
-                            self.memory.word(pc - 2 as usize),
-                            address);
-                    },
-                    _ => {}
-                }
             },
             LSR => self.a = self.lsr(self.a),
             LSR_ZP| LSR_ZP_X| LSR_ABS| LSR_ABS_X => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let new_value = self.lsr(self.memory.get(address));
                 self.memory.set(address, new_value);
             },
@@ -305,7 +280,7 @@ impl <'a> Cpu {
                 self.p.set_nz_flags(self.a);
             },
             ORA_ZP| ORA_ZP_X| ORA_ABS| ORA_ABS_X| ORA_ABS_Y| ORA_IND_X| ORA_IND_Y => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 self.a = self.a | self.memory.get(address);
                 self.p.set_nz_flags(self.a);
             },
@@ -345,7 +320,7 @@ impl <'a> Cpu {
                 self.a = self.rol(self.a);
             },
             ROL_ZP | ROL_ZP_X | ROL_ABS | ROL_ABS_X => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let new_value = self.rol(self.memory.get(address));
                 self.memory.set(address, new_value);
             },
@@ -353,7 +328,7 @@ impl <'a> Cpu {
                 self.a = self.ror(self.a);
             },
             ROR_ZP | ROR_ZP_X | ROR_ABS | ROR_ABS_X => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 let new_value = self.ror(self.memory.get(address));
                 self.memory.set(address, new_value);
             },
@@ -367,7 +342,11 @@ impl <'a> Cpu {
                 self.pc = self.sp.pop_word(&self.memory) + 1;
             },
             SBC_ZP |  SBC_ZP_X | SBC_ABS | SBC_ABS_X | SBC_ABS_Y | SBC_IND_X | SBC_IND_Y =>{
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
+                self.memory.set(address, self.a);
+            },
+            STA_ZP | STA_ZP_X | STA_ABS | STA_ABS_X | STA_ABS_Y | STA_IND_X | STA_IND_Y => {
+                let address = addressing_type.address(pc, self);
                 self.memory.set(address, self.a);
             },
             TXS => self.sp.s = self.x as usize,
@@ -383,16 +362,18 @@ impl <'a> Cpu {
             },
             PLP => self.p.value = self.sp.pop_byte(&mut self.memory),
             STX_ZP | STX_ZP_Y | STX_ABS => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 self.memory.set(address, self.x);
             },
             STY_ZP | STY_ZP_X | STY_ABS => {
-                let address = addressing_type.address(&self.memory, pc, self);
+                let address = addressing_type.address(pc, self);
                 self.memory.set(address, self.y);
             },
-            _ => {}// println!("***** Unknown opcode: {:2X}", opcode) }
+            _ => {
+                panic!("Unknown opcode");
+            }
         }
-        println!("{:<30} {}", s, self);
+        // println!("{:<30} {}", s, self);
         // i = i + 1;
         // if i >= max { break };
     }
@@ -421,6 +402,9 @@ impl <'a> Cpu {
     }
 
     fn cmp(&mut self, register: u8, v: u8) {
+        if register < v {
+            println!("PANIC!");
+        }
         let tmp = (register - v) & 0xff;
         self.p.set_c(register >= v);
         self.p.set_z(tmp == 0);
@@ -471,8 +455,8 @@ impl <'a> Cpu {
     }
 
     fn add(&mut self, v: u8) {
-        let result: u16 = self.a as u16 + self.p.v() as u16 + self.p.c() as u16;
-        let carry6 = self.a & 0x7f + self.p.v() as u8 & 0x7f + self.p.c() as u8;
+        let result: u16 = self.a as u16 + v as u16 + self.p.c() as u16;
+        let carry6 = self.a & 0x7f + v as u8 & 0x7f + self.p.c() as u8;
         self.p.set_c(result & 0x100 != 0);
         self.p.set_v(self.p.c() ^ (carry6 & 0x80 != 0));
         let result2 = result as u8;

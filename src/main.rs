@@ -18,7 +18,7 @@ impl StackPointer {
     const ADDRESS: usize = 0x100;
 
     fn inc(&mut self) { self.s = self.s + 1; }
-    fn dec(&mut self) { self.s = self.s - 1; }
+    fn dec(&mut self) { if self.s == 0 { self.s = 0xff as usize } else { self.s = self.s - 1; } }
 
     fn push_word(&mut self, memory: &mut Box<dyn Memory>, a: u16) {
         memory.set(StackPointer::ADDRESS + self.s, ((a & 0xff00) >> 8) as u8);
