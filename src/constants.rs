@@ -274,7 +274,7 @@ impl AddressingType {
         memory.word(w)
     }
 
-    pub fn address(&self, memory: &dyn Memory, pc: usize, cpu: &Cpu) -> usize {
+    pub fn address(&self, memory: &Box<dyn Memory>, pc: usize, cpu: &Cpu) -> usize {
         match self {
             ZP => memory.get(pc + 1) as usize,
             ZP_X => (memory.get(pc + 1) + cpu.x) as usize,

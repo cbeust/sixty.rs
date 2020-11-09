@@ -32,7 +32,7 @@ impl StackPointer {
     }
 }
 
-pub trait Memory<'a> {
+pub trait Memory {
     fn get(&self, index: usize) -> u8;
     fn set(&mut self, index: usize, value: u8);
     fn load(&mut self, file_name: &str);
@@ -42,7 +42,36 @@ pub trait Memory<'a> {
     // fn disassemble(&mut self, index: usize) -> (String, usize);
 }
 
-impl dyn Memory<'_> {
+struct SimpleMemory {
+    buffer: Vec<u8>,
+}
+
+impl SimpleMemory {
+    fn new(file_name: &str) -> SimpleMemory {
+        let mut result = SimpleMemory{
+            buffer: Vec::new()
+        };
+        result.load(file_name);
+        result
+    }
+}
+
+impl Memory for SimpleMemory {
+    fn get(&self, index: usize) -> u8 {
+        self.buffer[index]
+    }
+
+    fn set(&mut self, index: usize, value: u8) {
+        self.buffer[index] = value
+    }
+
+    fn load(&mut self, file_name: &str) {
+        let mut f = File::open(file_name).expect("Couldn't find the file");
+        f.read_to_end(&mut self.buffer).expect("Could not find file {}");
+    }
+}
+
+impl dyn Memory {
     pub fn disassemble(&mut self, index: usize) -> (String, usize) {
         let opcode = self.get(index) as usize;
         let size: usize = constants::SIZES[opcode];
@@ -58,35 +87,6 @@ impl dyn Memory<'_> {
     }
 }
 
-struct SimpleMemory {
-    buffer: Vec<u8>
-}
-
-impl SimpleMemory {
-    fn new(file_name: &str) -> SimpleMemory {
-        let mut result = SimpleMemory{
-            buffer: Vec::new()
-        };
-        result.load(file_name);
-        result
-    }
-}
-
-impl Memory<'_> for SimpleMemory {
-    fn get(&self, index: usize) -> u8 {
-        self.buffer[index]
-    }
-
-    fn set(&mut self, index: usize, value: u8) {
-        self.buffer[index] = value
-    }
-
-    fn load(&mut self, file_name: &str) {
-        let mut f = File::open(file_name).expect("Couldn't find the file");
-        f.read_to_end(&mut self.buffer).expect("Could not find file {}");
-    }
-}
-
 fn _word(buffer: &Vec<u8>, index: usize) -> u16 {
     return buffer[index + 1] as u16 | ((buffer[index + 2] as u16) << 8);
 }
@@ -97,7 +97,7 @@ fn word2(b0: u8, b1: u8) -> u16 {
 
 fn sixty() {
     let m = SimpleMemory::new("6502_functional_test.bin");
-    let mut cpu = Cpu::new(&m);
+    let mut cpu = Cpu::new(Box::new(m));
     cpu.run(0x400);
 }
 

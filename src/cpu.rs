@@ -4,24 +4,6 @@
 use crate::{Memory, constants::*, word2, StackPointer};
 use std::fmt;
 
-pub struct Cpu<'a> {
-    pub memory: &'a dyn Memory<'a>,
-    pub a: u8,
-    pub x: u8,
-    pub y: u8,
-    pub pc: usize,
-    pub sp: StackPointer,
-    pub p: StatusFlags
-}
-
-impl fmt::Display for Cpu<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let registers = std::format!("A={:02X} X={:02X} Y={:02X} S={:02X}",
-            self.a, self.x, self.y, self.sp.s as u8);
-        write!(f, "{} {}", registers, self.p)
-    }
-}
-
 pub struct StatusFlags {
     pub value: u8
 }
@@ -82,8 +64,26 @@ impl fmt::Display for StatusFlags {
     }
 }
 
-impl <'a> Cpu<'a> {
-    pub fn new(mut memory: &'a(&'a dyn Memory)) -> Cpu<'a> {
+pub struct Cpu {
+    pub memory: Box<dyn Memory>,
+    pub a: u8,
+    pub x: u8,
+    pub y: u8,
+    pub pc: usize,
+    pub sp: StackPointer,
+    pub p: StatusFlags
+}
+
+impl fmt::Display for Cpu {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let registers = std::format!("A={:02X} X={:02X} Y={:02X} S={:02X}",
+                                     self.a, self.x, self.y, self.sp.s as u8);
+        write!(f, "{} {}", registers, self.p)
+    }
+}
+
+impl <'a> Cpu {
+    pub fn new(mut memory: Box<dyn Memory>) -> Cpu {
         Cpu {
             memory,
             a: 0,
@@ -128,7 +128,7 @@ impl <'a> Cpu<'a> {
             match opcode {
                 ADC_IMM => self.adc(self.memory.get(self.pc + 1)),
                 ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
-                    let address = addressing_type.address(self.memory, pc, self);
+                    let address = addressing_type.address(&self.memory, pc, self);
                     self.adc(self.memory.get(address));
                     timing += runInst(opcode, self, pc, address, ADC_IND_Y, ADC_ABS_X, ADC_ABS_Y);
                 },
@@ -137,19 +137,19 @@ impl <'a> Cpu<'a> {
                     self.p.set_nz_flags(self.a);
                 },
                 AND_ZP | AND_ZP_X | AND_ABS | AND_ABS_X | AND_ABS_Y | AND_IND_X | AND_IND_Y => {
-                    let address = addressing_type.address(self.memory, pc, self);
+                    let address = addressing_type.address(&self.memory, pc, self);
                     let content = self.memory.get(address);
                     self.a &= content;
                     timing += runInst(opcode, self, pc, address, AND_IND_Y, AND_ABS_X, AND_ABS_Y);
                 },
                 ASL => self.a = self.asl(self.a),
                 ASL_ZP | ASL_ZP_X | ASL_ABS | ASL_ABS_X => {
-                    let address = addressing_type.address(self.memory, pc, self);
+                    let address = addressing_type.address(&self.memory, pc, self);
                     let result = self.asl(self.memory.get(address));
                     self.memory.set(address, result);
                 },
                 BIT_ZP | BIT_ABS => {
-                    let address = addressing_type.address(self.memory, pc, self);
+                    let address = addressing_type.address(&self.memory, pc, self);
                     let content = self.memory.get(address);
                     let v = self.p.v() as u8;
                     self.p.set_z(v & self.a == 0);
@@ -170,7 +170,7 @@ impl <'a> Cpu<'a> {
                 BVS => { timing += self.branch(self.memory.get(pc + 1), self.p.v()) },
                 BRK => self.handleInterrupt(true, IRQ_VECTOR_H, IRQ_VECTOR_L),
                 LDX_ZP | LDX_ZP_Y | LDX_ABS | LDX_ABS_Y => {
-                    let address = addressing_type.address(self.memory, pc, self);
+                    let address = addressing_type.address(&self.memory, pc, self);
                     let content = self.memory.get(address);
                     self.x = content;
                     self.p.set_nz_flags(self.x);
@@ -188,7 +188,7 @@ impl <'a> Cpu<'a> {
                     self.p.set_nz_flags(self.y);
                 },
                 LDY_ZP | LDY_ZP_X | LDY_ABS | LDY_ABS_X => {
-                    let address = addressing_type.address(self.memory, pc, self);
+                    let address = addressing_type.address(&self.memory, pc, self);
                     let content = self.memory.get(address);
                     self.y = content;
                     self.p.set_nz_flags(self.y);
@@ -221,11 +221,13 @@ impl <'a> Cpu<'a> {
 
     fn handleInterrupt(&mut self, brk: bool, vector_high: usize, vector_low: usize) {
         self.p.set_b(brk);
-        let mut m: &mut Box<dyn Memory> = &mut *self.memory;
+        let mut m: &mut Box<dyn Memory> = &mut self.memory;
         self.sp.push_word(&mut m, (self.pc + 1) as u16);
         self.sp.push_byte(&mut m, self.p.value);
         self.p.set_i(true);
-        self.pc = (self.memory.get(vector_high) << 8) as usize | self.memory.get(vector_low) as usize
+        let new_pc = (self.memory.get(vector_high) as u16) << 8 |
+            self.memory.get(vector_low) as u16;
+        self.pc = new_pc as usize;
     }
 
     fn branch(&mut self, byte: u8, condition: bool) -> u8 {
