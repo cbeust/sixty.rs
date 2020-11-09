@@ -30,6 +30,19 @@ impl StackPointer {
         memory.set(StackPointer::ADDRESS + self.s, a);
         self.inc();
     }
+
+    fn pop_byte(&mut self, memory: &Box<dyn Memory>) -> u8 {
+        self.inc();
+        memory.get(StackPointer::ADDRESS + self.s)
+    }
+
+    fn pop_word(&mut self, memory: &Box<dyn Memory>) -> usize {
+        self.inc();
+        let low = memory.get(StackPointer::ADDRESS + self.s) as usize;
+        self.inc();
+        let high = memory.get(StackPointer::ADDRESS + self.s) as usize;
+        low | high << 8
+    }
 }
 
 pub trait Memory {

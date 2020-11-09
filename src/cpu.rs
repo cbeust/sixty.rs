@@ -332,7 +332,26 @@ impl <'a> Cpu {
                 },
                 ROL => {
                     self.a = self.rol(self.a);
-                }
+                },
+                ROL_ZP | ROL_ZP_X | ROL_ABS | ROL_ABS_X => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    let new_value = self.rol(self.memory.get(address));
+                    self.memory.set(address, new_value);
+                },
+                ROR => {
+                    self.a = self.ror(self.a);
+                },
+                ROR_ZP | ROR_ZP_X | ROR_ABS | ROR_ABS_X => {
+                    let address = addressing_type.address(&self.memory, pc, self);
+                    let new_value = self.ror(self.memory.get(address));
+                    self.memory.set(address, new_value);
+                },
+                RTI => {
+                    self.p.value = self.sp.pop_byte(&self.memory);
+                },
+                RTS => {
+                    self.pc = self.sp.pop_word(&self.memory);
+                },
                 CLC => self.p.set_c(false),
                 SEC => self.p.set_c(true),
                 CLI => self.p.set_i(false),
@@ -354,6 +373,14 @@ impl <'a> Cpu {
             i = i + 1;
             if i >= max { break };
         }
+    }
+
+    fn ror(&mut self, v: u8) -> u8 {
+        let bit0 = v & 1;
+        let result = (v >> 1) | (self.p.c() as u8) << 7;
+        self.p.set_nz_flags(result);
+        self.p.set_c(bit0 != 0);
+        result
     }
 
     fn rol(&mut self, v: u8) -> u8 {
