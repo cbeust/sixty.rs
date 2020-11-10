@@ -107,6 +107,11 @@ impl <'a> Cpu {
         let mut previous_pc = 0;
         loop {
             if previous_pc != 0 && previous_pc == self.pc {
+                println!("{:2X} {:2X} {:2X} {:2X}",
+                    self.memory.get(0x1ff),
+                    self.memory.get(0x1fe),
+                    self.memory.get(0x1fd),
+                    self.memory.get(0x1fc));
                 println!("Infinite loop at PC {:2X}", self.pc);
                 println!("");
             } else if self.pc == 0x346c || self.pc == 0x3469 {
@@ -239,7 +244,7 @@ impl <'a> Cpu {
                     as usize
             },
             JSR => {
-                self.sp.push_word(&mut self.memory, pc as u16 - 1);
+                self.sp.push_word(&mut self.memory, pc as u16 + 2);
                 self.pc = self.memory.word(pc + 1) as usize;
             },
             LDX_IMM => {
@@ -343,7 +348,7 @@ impl <'a> Cpu {
                 self.p.value = self.sp.pop_byte(&self.memory);
             },
             RTS => {
-                self.pc = self.sp.pop_word(&self.memory);
+                self.pc = self.sp.pop_word(&self.memory) + 1;
             },
             SBC_IMM => {
                 self.pc = self.sp.pop_word(&self.memory) + 1;

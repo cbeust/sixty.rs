@@ -5,6 +5,8 @@ use crate::cpu::Cpu;
 use constants::*;
 use std::io::prelude::*;
 use std::fs::File;
+use core::fmt;
+use std::cmp::max;
 
 fn main() {
     sixty();
@@ -46,6 +48,14 @@ impl StackPointer {
     }
 }
 
+impl fmt::Display for StackPointer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for i in 0xff..max(self.s + 1, 0xf8) {
+
+        }
+        write!(f, "SP={:2X}", self.s)
+    }
+}
 pub trait Memory {
     fn get(&self, index: usize) -> u8;
     fn set(&mut self, index: usize, value: u8);
