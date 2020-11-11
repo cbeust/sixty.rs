@@ -6,41 +6,43 @@ use constants::*;
 use std::io::prelude::*;
 use std::fs::File;
 use core::fmt;
-use std::cmp::max;
+use std::cell::{RefCell};
 
 fn main() {
     sixty();
 }
 
-pub struct StackPointer {
-    s: usize
+pub struct StackPointer<'a> {
+    s: usize,
+    memory: &'a RefCell<dyn Memory>
 }
 
-impl StackPointer {
+impl StackPointer<'_> {
     const ADDRESS: usize = 0x100;
 
     fn inc(&mut self) { if self.s == 0xff { self.s = 0 } else { self.s = self.s + 1; } }
     fn dec(&mut self) { if self.s == 0 { self.s = 0xff as usize } else { self.s = self.s - 1; } }
 
-    fn push_byte(&mut self, memory: &mut Box<dyn Memory>, a: u8) {
-        memory.set(StackPointer::ADDRESS + self.s, a);
+    fn push_byte(&mut self, a: u8) {
+        self.memory.borrow_mut().set(StackPointer::ADDRESS + self.s, a);
         self.dec();
     }
 
-    fn pop_byte(&mut self, memory: &Box<dyn Memory>) -> u8 {
+    fn pop_byte(&mut self,) -> u8 {
         self.inc();
-        memory.get(StackPointer::ADDRESS + self.s)
+        self.memory.borrow().get(StackPointer::ADDRESS + self.s)
     }
 
-    fn push_word(&mut self, memory: &mut Box<dyn Memory>, a: u16) {
-        memory.set(StackPointer::ADDRESS + self.s, ((a & 0xff00) >> 8) as u8);
+    fn push_word(&mut self, a: u16) {
+        self.memory.borrow_mut().set(StackPointer::ADDRESS + self.s, ((a & 0xff00) >> 8) as u8);
         self.dec();
-        memory.set(StackPointer::ADDRESS + self.s, (a & 0xff) as u8);
+        self.memory.borrow_mut().set(StackPointer::ADDRESS + self.s, (a & 0xff) as u8);
         self.dec();
     }
 
-    fn pop_word(&mut self, memory: &Box<dyn Memory>) -> usize {
+    fn pop_word(&mut self) -> usize {
         self.inc();
+        let memory = self.memory.borrow();
         let low = memory.get(StackPointer::ADDRESS + self.s) as usize;
         self.inc();
         let high = memory.get(StackPointer::ADDRESS + self.s) as usize;
@@ -48,11 +50,11 @@ impl StackPointer {
     }
 }
 
-impl fmt::Display for StackPointer {
+impl fmt::Display for StackPointer<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for i in 0xff..max(self.s + 1, 0xf8) {
-
-        }
+        // for i in 0xff..max(self.s + 1, 0xf8) {
+        //
+        // }
         write!(f, "SP={:2X}", self.s)
     }
 }
@@ -96,7 +98,7 @@ impl Memory for SimpleMemory {
 }
 
 impl dyn Memory {
-    pub fn disassemble(&mut self, index: usize) -> (String, usize) {
+    pub fn disassemble(&self, index: usize) -> (String, usize) {
         let opcode = self.get(index) as usize;
         let size: usize = constants::SIZES[opcode];
         let mut bytes = Vec::new();
@@ -121,7 +123,9 @@ fn word2(b0: u8, b1: u8) -> u16 {
 
 fn sixty() {
     let m = SimpleMemory::new("6502_functional_test.bin");
-    let mut cpu = Cpu::new(Box::new(m));
+    let mut b = &RefCell::new(m) as &RefCell<dyn Memory>;
+    let mb = & mut b;
+    let mut cpu = Cpu::new(mb);
     cpu.run(0x400);
 }
 

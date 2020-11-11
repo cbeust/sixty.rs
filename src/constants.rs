@@ -275,7 +275,7 @@ impl AddressingType {
     }
 
     pub fn address(&self, pc: usize, cpu: &Cpu) -> usize {
-        let memory = &cpu.memory;
+        let memory = &cpu.memory.borrow();
         match self {
             ZP => memory.get(pc + 1) as usize,
             ZP_X => (memory.get(pc + 1) + cpu.x) as usize,
