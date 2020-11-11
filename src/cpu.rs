@@ -7,7 +7,7 @@ use std::cell::{RefCell, RefMut};
 use std::borrow::BorrowMut;
 
 const DEBUG_ASM: bool = false;
-const DEBUG_PC: usize = 14218;
+const DEBUG_PC: usize = 0x37ae;
 
 pub struct StatusFlags {
     pub value: u8
@@ -109,11 +109,12 @@ impl <'a> Cpu<'a> {
         let mut previous_pc = 0;
         loop {
             if previous_pc != 0 && previous_pc == self.pc {
+                let memory = self.memory.borrow();
                 println!("{:2X} {:2X} {:2X} {:2X}",
-                    self.memory.borrow().get(0x1ff),
-                    self.memory.borrow().get(0x1fe),
-                    self.memory.borrow().get(0x1fd),
-                    self.memory.borrow().get(0x1fc));
+                         memory.get(0x1ff),
+                         memory.get(0x1fe),
+                         memory.get(0x1fd),
+                         memory.get(0x1fc));
                 println!("Infinite loop at PC {:2X}", self.pc);
                 println!("");
             } else if self.pc == 0x346c || self.pc == 0x3469 {
