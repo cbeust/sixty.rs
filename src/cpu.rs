@@ -87,7 +87,7 @@ impl fmt::Display for Cpu<'_> {
                                      self.a, self.x, self.y, self.sp.s as u8);
         // Desired format:
         // 00000000| 05E0: D0 FE      BNE  $05E0       (2) A=AA X=FF Y=00 S=FD P=03 PC=$5E2 P=$03 {---- --ZC} SP={$FD stack:[$1FF:$55 $1FE:$AA ]}
-        write!(f, "{} {}", registers, self.p)
+        write!(f, "{} {} {}", registers, self.p, self.sp)
     }
 }
 
@@ -115,7 +115,7 @@ impl <'a> Cpu<'a> {
                          memory.get(0x1fe),
                          memory.get(0x1fd),
                          memory.get(0x1fc));
-                println!("Infinite loop at PC {:2X}", self.pc);
+                println!("Infinite loop at PC {:2X} {}", self.pc, self);
                 println!("");
             } else if self.pc == 0x346c || self.pc == 0x3469 {
                 println!("ALL TESTS PASSED!");
@@ -425,7 +425,8 @@ impl <'a> Cpu<'a> {
     }
 
     fn cmp(&mut self, register: u8, v: u8) {
-        let tmp: i8 = register as i8 - v as i8;
+        println!("cmp {:2X} {:2X}", register, v);
+        let tmp: i8 = (register as i16 - v as i16) as i8;
         // let tmp = (register - v) & 0xff;
         self.p.set_c(register >= v);
         self.p.set_z(tmp == 0);

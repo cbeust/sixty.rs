@@ -7,6 +7,7 @@ use std::io::prelude::*;
 use std::fs::File;
 use core::fmt;
 use std::cell::{RefCell};
+use std::cmp::max;
 
 fn main() {
     sixty();
@@ -52,10 +53,13 @@ impl StackPointer<'_> {
 
 impl fmt::Display for StackPointer<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // for i in 0xff..max(self.s + 1, 0xf8) {
-        //
-        // }
-        write!(f, "SP={:2X}", self.s)
+        let mut result = Vec::new();
+        result.push(std::format!("{:2X} stack:[", self.s));
+        for i in std::iter::range_step(0xff, max(self.s + 1, 0xf8), -1) {
+            let v = self.memory.borrow().get(StackPointer::ADDRESS + i);
+            result.push(std::format!("{:2X}", v));
+        }
+        write!(f, "{}", result.join(" "))
     }
 }
 pub trait Memory {
