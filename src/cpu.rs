@@ -7,8 +7,8 @@ use std::cell::{RefCell, RefMut};
 use std::borrow::BorrowMut;
 
 const DEBUG_ASM: bool = false;
-const DEBUG_PC: usize = 0x10000; // 0x670;
-const DEBUG_CYCLES: u64 = 0x14700;
+const DEBUG_PC: usize = 0x20000; // 0x670;
+const DEBUG_CYCLES: u64 = u64::max_value();
 
 pub struct StatusFlags {
     _value: u8
@@ -310,11 +310,11 @@ impl <'a> Cpu<'a> {
                 self.p.set_nz_flags(self.a);
             },
             DEX => {
-                self.x -= 1;
+                if self.x == 0 { self.x = 0xff } else { self.x -= 1; }
                 self.p.set_nz_flags(self.x);
             },
             INX => {
-                self.x += 1;
+                if self.x == 0xff { self.x = 0 } else { self.x += 1; }
                 self.p.set_nz_flags(self.x);
             },
             TAY => {
@@ -326,11 +326,11 @@ impl <'a> Cpu<'a> {
                 self.p.set_nz_flags(self.a);
             },
             DEY => {
-                self.y -= 1;
+                if self.y == 0 { self.y = 0xff; } else { self.y -= 1; }
                 self.p.set_nz_flags(self.y);
             },
             INY => {
-                self.y += 1;
+                if self.y == 0xff { self.y = 0; } else { self.y += 1; }
                 self.p.set_nz_flags(self.y);
             },
             ROL => {

@@ -276,10 +276,13 @@ impl AddressingType {
 
     pub fn address(&self, pc: usize, cpu: &Cpu) -> usize {
         let memory = &cpu.memory.borrow();
+        fn zp(a: u8, b: u8) -> u8 {
+            ((a as u16 + b as u16) as u8)
+        }
         match self {
             ZP => memory.get(pc + 1) as usize,
-            ZP_X => (memory.get(pc + 1) + cpu.x) as usize,
-            ZP_Y => (memory.get(pc + 1) + cpu.y) as usize,
+            ZP_X => zp(memory.get(pc + 1), cpu.x) as usize,
+            ZP_Y => zp(memory.get(pc + 1), cpu.y) as usize,
             ABSOLUTE => memory.word(pc + 1) as usize,
             ABSOLUTE_X => (memory.word(pc + 1) + cpu.x as u16) as usize,
             ABSOLUTE_Y => (memory.word(pc + 1) + cpu.y as u16) as usize,
