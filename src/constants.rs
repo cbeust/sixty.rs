@@ -287,7 +287,10 @@ impl AddressingType {
             ABSOLUTE_X => (memory.word(pc + 1) + cpu.x as u16) as usize,
             ABSOLUTE_Y => (memory.word(pc + 1) + cpu.y as u16) as usize,
             INDIRECT => memory.word(pc + 1) as usize,
-            INDIRECT_X => memory.word((memory.get(pc + 1) + cpu.x) as usize) as usize,
+            INDIRECT_X => {
+                let address = zp(memory.get(pc + 1), cpu.x);
+                memory.word(address as usize) as usize
+            },
             INDIRECT_Y => (memory.word(memory.get(pc + 1) as usize) + cpu.y as u16) as usize,
             IMMEDIATE | RELATIVE | ZPI | REGISTER_A | AIX | NONE => 0
         }
