@@ -57,11 +57,13 @@ impl fmt::Display for StackPointer<'_> {
         result.push(std::format!("{{{:2X} stack:[", self.s));
         let down = max(self.s + 1, 0xf8);
         let mut i = 0xff;
-        loop {
-            let v = self.memory.borrow().get(StackPointer::ADDRESS + i);
-            result.push(std::format!("{:02X}={:02X}", i, v));
-            i = i - 1;
-            if i < down { break; }
+        if down < 0xff {
+            loop {
+                let v = self.memory.borrow().get(StackPointer::ADDRESS + i);
+                result.push(std::format!("{:02X}={:02X}", i, v));
+                i = i - 1;
+                if i < down { break; }
+            }
         }
         result.push("]}}".to_string());
         write!(f, "{}", result.join(" "))

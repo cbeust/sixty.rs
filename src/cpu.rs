@@ -6,37 +6,45 @@ use std::fmt;
 use std::cell::{RefCell, RefMut};
 use std::borrow::BorrowMut;
 
-const DEBUG_ASM: bool = true;
-const DEBUG_PC: usize = 0x37ae;
+const DEBUG_ASM: bool = false;
+const DEBUG_PC: usize = 0x10000; // 0x670;
+const DEBUG_CYCLES: u64 = 0x14700;
 
 pub struct StatusFlags {
-    pub value: u8
+    _value: u8
 }
 
 impl StatusFlags {
     fn new() -> StatusFlags {
-        StatusFlags { value: 0 }
+        StatusFlags { _value: 0x20 /* reserved to true by default */ }
     }
 
-    fn set(&mut self, v: u8) {
-        self.value = v;
+    fn set_value(&mut self, value: u8) {
+        self._value = value | 1<<5;  // always set the reserved bit
     }
+
+    fn value(&self) -> u8 { self._value }
 
     fn get_bit(&self, bit: u8) -> bool {
-        self.value & (1 << bit) != 0
+        self._value & (1 << bit) != 0
     }
 
     fn set_bit(&mut self, f: bool, bit: u8) {
-        if f { self.value |= 1 << bit }
-        else { self.value &= !(1 << bit) }
+        if f { self._value |= 1 << bit }
+        else { self._value &= !(1 << bit) }
     }
 
     fn n(&self) -> bool { self.get_bit(7) }
     fn set_n(&mut self, f: bool) { self.set_bit(f, 7) }
     fn v(&self) -> bool { self.get_bit(6) }
     fn set_v(&mut self, f: bool) { self.set_bit(f, 6) }
-    fn reserved(&self) -> bool { self.get_bit(5) }
-    fn set_reserved(&mut self, f: bool) { self.set_bit(f, 5) }
+    fn reserved(&self) -> bool { true }
+    // fn set_reserved(&mut self, f: bool) {
+    //     if ! f {
+    //         println!("PROBLEM");
+    //     }
+    //     self.set_bit(f, 5)
+    // }
     fn b(&self) -> bool { self.get_bit(4) }
     fn set_b(&mut self, f: bool) { self.set_bit(f, 4) }
     fn d(&self) -> bool { self.get_bit(3) }
@@ -60,9 +68,10 @@ impl fmt::Display for StatusFlags {
             if v {n} else {"-".as_ref()}
         }
 
-        write!(f, "{{P:${:02X} {}{}-{}{}{}{}{}}}", self.value,
+        write!(f, "{{P:${:02X} {}{}{}{}{}{}{}{}}}", self.value(),
                s("N", self.n()),
                s("V", self.v()),
+               s("r", self.reserved()),
                s("B", self.b()),
                s("D", self.d()),
                s("I", self.i()),
@@ -347,7 +356,7 @@ impl <'a> Cpu<'a> {
                 self.memory.borrow_mut().set(address, new_value);
             },
             RTI => {
-                self.p.value = self.sp.pop_byte();
+                self.p.set_value(self.sp.pop_byte());
             },
             RTS => {
                 self.pc = self.sp.pop_word() + 1;
@@ -375,10 +384,10 @@ impl <'a> Cpu<'a> {
             },
             PHP => {
                 self.p.set_b(true);
-                self.p.set_reserved(true);
-                self.sp.push_byte(self.p.value);
+                // self.p.set_reserved(true);
+                self.sp.push_byte(self.p.value());
             },
-            PLP => self.p.value = self.sp.pop_byte(),
+            PLP => self.p.set_value(self.sp.pop_byte()),
             STX_ZP | STX_ZP_Y | STX_ABS => {
                 let address = addressing_type.address(pc, self);
                 self.memory.borrow_mut().set(address, self.x);
@@ -391,7 +400,10 @@ impl <'a> Cpu<'a> {
                 panic!("Unknown opcode");
             }
         }
-        if DEBUG_ASM || self.pc > DEBUG_PC - 100 {
+        if self.pc == DEBUG_PC {
+            println!("BREAKPOINT DEBUG_PC");
+        }
+        if DEBUG_ASM || self.pc > DEBUG_PC - 100 || self.cycles > DEBUG_CYCLES {
             let (s, size) = self.memory.borrow().disassemble(pc);
             println!("{:08X}| {:<30} {}", self.cycles, s, self);
         }
