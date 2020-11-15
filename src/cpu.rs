@@ -194,7 +194,7 @@ impl <'a> Cpu<'a> {
             BCS => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.c()) },
             BVC => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.v()) },
             BVS => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.v()) },
-            BRK => self.handleInterrupt(true, IRQ_VECTOR_H, IRQ_VECTOR_L),
+            BRK => self.handle_interrupt(true, IRQ_VECTOR_H, IRQ_VECTOR_L),
             CMP_IMM => self.cmp(self.a, self.memory.borrow().get(pc + 1)),
             CMP_ZP| CMP_ZP_X| CMP_ABS| CMP_ABS_X| CMP_ABS_Y| CMP_IND_X| CMP_IND_Y => {
                 self.cmp(self.a, self.memory.borrow().get(
@@ -431,10 +431,11 @@ impl <'a> Cpu<'a> {
         self.p.set_n(tmp < 0);
     }
 
-    fn handleInterrupt(&mut self, brk: bool, vector_high: usize, vector_low: usize) {
+    fn handle_interrupt(&mut self, brk: bool, vector_high: usize, vector_low: usize) {
+        println!("Current P value: {}", self.p);
         self.p.set_b(brk);
         self.sp.push_word((self.pc + 1) as u16);
-        self.sp.push_byte(self.p.value);
+        self.sp.push_byte(self.p.value());
         self.p.set_i(true);
         let memory = self.memory.borrow();
         let new_pc = (self.memory.borrow().get(vector_high) as u16) << 8 | self.memory.borrow().get(vector_low) as u16;
