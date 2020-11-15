@@ -39,12 +39,6 @@ impl StatusFlags {
     fn v(&self) -> bool { self.get_bit(6) }
     fn set_v(&mut self, f: bool) { self.set_bit(f, 6) }
     fn reserved(&self) -> bool { true }
-    // fn set_reserved(&mut self, f: bool) {
-    //     if ! f {
-    //         println!("PROBLEM");
-    //     }
-    //     self.set_bit(f, 5)
-    // }
     fn b(&self) -> bool { self.get_bit(4) }
     fn set_b(&mut self, f: bool) { self.set_bit(f, 4) }
     fn d(&self) -> bool { self.get_bit(3) }
@@ -445,7 +439,6 @@ impl <'a> Cpu<'a> {
     }
 
     fn handle_interrupt(&mut self, brk: bool, vector_high: usize, vector_low: usize) {
-        println!("Current P value: {}", self.p);
         self.p.set_b(brk);
         self.sp.push_word((self.pc + 1) as u16);
         self.sp.push_byte(self.p.value());
