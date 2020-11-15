@@ -6,9 +6,10 @@ use std::fmt;
 use std::cell::{RefCell, RefMut};
 use std::borrow::BorrowMut;
 
+
 const DEBUG_ASM: bool = false;
-const DEBUG_PC: usize = 0x1b88; // 0x20000; // 0x670;
-const DEBUG_CYCLES: u64 = 0x00017838; // u64::max_value();
+const DEBUG_PC: usize = 0x20000; // 0x35c9; // 0x20000; // 0x670;
+const DEBUG_CYCLES: u64 = u64::max_value();
 
 pub struct StatusFlags {
     _value: u8
@@ -114,18 +115,19 @@ impl <'a> Cpu<'a> {
         self.pc = start_pc;
         let mut previous_pc = 0;
         loop {
-            if previous_pc != 0 && previous_pc == self.pc {
-                let memory = self.memory.borrow();
-                println!("Infinite loop at PC {:2X} {}", self.pc, self);
-                println!("mem[$15]: {:02X}", memory.get(0x15));
-                println!("");
-            } else if self.pc == 0x346c || self.pc == 0x3469 {
+            if self.pc == 0x346c || self.pc == 0x3469 {
                 println!("ALL TESTS PASSED!");
             } else {
                 previous_pc = self.pc;
                 let opcode = self.memory.borrow().get(self.pc);
                 self.pc += SIZES[opcode as usize];
                 self.cycles = self.cycles + self.next_instruction(previous_pc);
+            }
+            if previous_pc != 0 && previous_pc == self.pc {
+                let memory = self.memory.borrow();
+                println!("Infinite loop at PC {:2X} {}", self.pc, self);
+                println!("Memory[240+x]={:02X}", memory.get(0x240 as usize + self.x as usize));
+                println!("");
             }
         }
     }
@@ -215,7 +217,8 @@ impl <'a> Cpu<'a> {
             },
             DEC_ZP| DEC_ZP_X| DEC_ABS| DEC_ABS_X => {
                 let address = addressing_type.address(pc, self);
-                let new_value = self.memory.borrow().get(address) - 1;
+                let old_value = self.memory.borrow().get(address);
+                let new_value = if old_value == 0 { 0xff } else { old_value - 1};
                 self.memory.borrow_mut().set(address, new_value);
                 self.p.set_nz_flags(new_value);
             },
@@ -239,8 +242,8 @@ impl <'a> Cpu<'a> {
                 let address = addressing_type.address(pc, self);
                 let content = self.memory.borrow().get(address);
                 let word = self.memory.borrow().word(pc + 1);
-                let new_value = content + 1;
-                self.memory.borrow_mut().set(address, content);
+                let new_value = if content == 0xff { 0 } else { content + 1 };
+                self.memory.borrow_mut().set(address, new_value);
                 self.p.set_nz_flags(new_value);
             },
             JMP => self.pc = self.memory.borrow().word(pc + 1) as usize,
@@ -357,11 +360,11 @@ impl <'a> Cpu<'a> {
                 self.pc = self.sp.pop_word() + 1;
             },
             SBC_IMM => {
-                self.pc = self.sp.pop_word() + 1;
+                self.sbc(self.memory.borrow().get(pc + 1));
             },
             SBC_ZP |  SBC_ZP_X | SBC_ABS | SBC_ABS_X | SBC_ABS_Y | SBC_IND_X | SBC_IND_Y =>{
                 let address = addressing_type.address(pc, self);
-                self.memory.borrow_mut().set(address, self.a);
+                self.sbc(self.memory.borrow().get(address));
             },
             STA_ZP | STA_ZP_X | STA_ABS | STA_ABS_X | STA_ABS_Y | STA_IND_X | STA_IND_Y => {
                 let address = addressing_type.address(pc, self);
@@ -398,7 +401,8 @@ impl <'a> Cpu<'a> {
         if self.pc == DEBUG_PC {
             println!("BREAKPOINT DEBUG_PC");
         }
-        if DEBUG_ASM || self.pc > DEBUG_PC - 100 || self.cycles > DEBUG_CYCLES {
+        let close_to_breakpoint = self.pc > DEBUG_PC - 50 && self.pc < DEBUG_PC;
+        if DEBUG_ASM || close_to_breakpoint || self.cycles > DEBUG_CYCLES {
             let (s, size) = self.memory.borrow().disassemble(pc);
             println!("{:08X}| {:<30} {}", self.cycles, s, self);
         }
@@ -466,8 +470,8 @@ impl <'a> Cpu<'a> {
     }
 
     fn asl(&mut self, v: u8) -> u8 {
-        self.p.set_c(self.p.v() as u8 & 0x80 != 0);
-        let result: u8 = (self.p.v() as u8) << 1;
+        self.p.set_c(v & 0x80 != 0);
+        let result: u8 = v << 1;
         self.p.set_nz_flags(result);
         return result;
     }
@@ -488,5 +492,13 @@ impl <'a> Cpu<'a> {
         let result2 = result as u8;
         self.p.set_nz_flags(result2);
         self.a = result2;
+    }
+
+    fn sbc(&mut self, v: u8) {
+        if self.p.d() {
+            unimplemented!("SBC with decimal mode not implemented");
+        } else {
+            self.add((v ^ 0xff) as u8);
+        }
     }
 }
