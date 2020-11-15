@@ -7,8 +7,8 @@ use std::cell::{RefCell, RefMut};
 use std::borrow::BorrowMut;
 
 const DEBUG_ASM: bool = false;
-const DEBUG_PC: usize = 0x20000; // 0x670;
-const DEBUG_CYCLES: u64 = u64::max_value();
+const DEBUG_PC: usize = 0x1b88; // 0x20000; // 0x670;
+const DEBUG_CYCLES: u64 = 0x00017838; // u64::max_value();
 
 pub struct StatusFlags {
     _value: u8
@@ -20,7 +20,7 @@ impl StatusFlags {
     }
 
     fn set_value(&mut self, value: u8) {
-        self._value = value | 1<<5;  // always set the reserved bit
+        self._value = value | 1 << 4 | 1 << 5;  // always set the B and reserved flags
     }
 
     fn value(&self) -> u8 { self._value }
@@ -38,8 +38,8 @@ impl StatusFlags {
     fn set_n(&mut self, f: bool) { self.set_bit(f, 7) }
     fn v(&self) -> bool { self.get_bit(6) }
     fn set_v(&mut self, f: bool) { self.set_bit(f, 6) }
-    fn reserved(&self) -> bool { true }
-    fn b(&self) -> bool { self.get_bit(4) }
+    fn reserved(&self) -> bool { true }  // reserved always true
+    fn b(&self) -> bool { true } // b always true
     fn set_b(&mut self, f: bool) { self.set_bit(f, 4) }
     fn d(&self) -> bool { self.get_bit(3) }
     fn set_d(&mut self, f: bool) { self.set_bit(f, 3) }
@@ -117,6 +117,7 @@ impl <'a> Cpu<'a> {
             if previous_pc != 0 && previous_pc == self.pc {
                 let memory = self.memory.borrow();
                 println!("Infinite loop at PC {:2X} {}", self.pc, self);
+                println!("mem[$15]: {:02X}", memory.get(0x15));
                 println!("");
             } else if self.pc == 0x346c || self.pc == 0x3469 {
                 println!("ALL TESTS PASSED!");
@@ -184,10 +185,9 @@ impl <'a> Cpu<'a> {
             BIT_ZP | BIT_ABS => {
                 let address = addressing_type.address(pc, self);
                 let content = self.memory.borrow().get(address);
-                let v = self.p.v() as u8;
-                self.p.set_z(v & self.a == 0);
-                self.p.set_n(v & 0x80 != 0);
-                self.p.set_v(v & 0x40 != 0);
+                self.p.set_z(content & self.a == 0);
+                self.p.set_n(content & 0x80 != 0);
+                self.p.set_v(content & 0x40 != 0);
             },
             BPL => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.n()) },
             BMI => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.n()) },
