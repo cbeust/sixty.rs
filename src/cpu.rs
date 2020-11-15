@@ -357,6 +357,7 @@ impl <'a> Cpu<'a> {
             },
             RTI => {
                 self.p.set_value(self.sp.pop_byte());
+                self.pc = self.sp.pop_word();
             },
             RTS => {
                 self.pc = self.sp.pop_word() + 1;
