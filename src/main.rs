@@ -54,11 +54,16 @@ impl StackPointer<'_> {
 impl fmt::Display for StackPointer<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut result = Vec::new();
-        result.push(std::format!("{:2X} stack:[", self.s));
-        for i in std::iter::range_step(0xff, max(self.s + 1, 0xf8), -1) {
+        result.push(std::format!("{{{:2X} stack:[", self.s));
+        let down = max(self.s + 1, 0xf8);
+        let mut i = 0xff;
+        loop {
             let v = self.memory.borrow().get(StackPointer::ADDRESS + i);
-            result.push(std::format!("{:2X}", v));
+            result.push(std::format!("{:02X}={:02X}", i, v));
+            i = i - 1;
+            if i < down { break; }
         }
+        result.push("]}}".to_string());
         write!(f, "{}", result.join(" "))
     }
 }

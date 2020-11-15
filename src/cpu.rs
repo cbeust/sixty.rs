@@ -6,7 +6,7 @@ use std::fmt;
 use std::cell::{RefCell, RefMut};
 use std::borrow::BorrowMut;
 
-const DEBUG_ASM: bool = false;
+const DEBUG_ASM: bool = true;
 const DEBUG_PC: usize = 0x37ae;
 
 pub struct StatusFlags {
@@ -78,7 +78,9 @@ pub struct Cpu<'a> {
     pub y: u8,
     pub pc: usize,
     pub sp: StackPointer<'a>,
-    pub p: StatusFlags
+    pub p: StatusFlags,
+
+    pub cycles: u64
 }
 
 impl fmt::Display for Cpu<'_> {
@@ -100,7 +102,8 @@ impl <'a> Cpu<'a> {
             y: 0,
             pc: 0,
             sp: StackPointer { s: 0, memory },
-            p: StatusFlags::new()
+            p: StatusFlags::new(),
+            cycles: 0
         }
     }
 
@@ -110,11 +113,6 @@ impl <'a> Cpu<'a> {
         loop {
             if previous_pc != 0 && previous_pc == self.pc {
                 let memory = self.memory.borrow();
-                println!("{:2X} {:2X} {:2X} {:2X}",
-                         memory.get(0x1ff),
-                         memory.get(0x1fe),
-                         memory.get(0x1fd),
-                         memory.get(0x1fc));
                 println!("Infinite loop at PC {:2X} {}", self.pc, self);
                 println!("");
             } else if self.pc == 0x346c || self.pc == 0x3469 {
@@ -123,21 +121,21 @@ impl <'a> Cpu<'a> {
                 previous_pc = self.pc;
                 let opcode = self.memory.borrow().get(self.pc);
                 self.pc += SIZES[opcode as usize];
-                self.next_instruction(previous_pc);
+                self.cycles = self.cycles + self.next_instruction(previous_pc);
             }
         }
     }
 
-    pub fn next_instruction(&mut self, pc: usize) {
+    pub fn next_instruction(&mut self, pc: usize) -> u64 {
         let max = 10;
         let mut i = 0;
         // let byte = self.self.memory.borrow().get(self.pc + 1);
         // let word = word2(byte, self.self.memory.borrow().get(self.pc + 2));
-        let mut timing = 0;
 
         // let mut bm = Box::new(&self.memory);
         let opcode = self.memory.borrow().get(pc);
         let addressing_type = &ADDRESSING_TYPES[opcode as usize];
+        let mut cycles = TIMINGS[opcode as usize];
 
         fn runInst(opcode: u8, cpu: &mut Cpu, pc: usize, address: usize,
                    ind_y: u8, abs_x: u8, abs_y: u8) -> u8 {
@@ -162,7 +160,7 @@ impl <'a> Cpu<'a> {
             ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
                 let address = addressing_type.address(pc, self);
                 self.adc(self.memory.borrow().get(address));
-                timing += runInst(opcode, self, pc, address, ADC_IND_Y, ADC_ABS_X, ADC_ABS_Y);
+                cycles += runInst(opcode, self, pc, address, ADC_IND_Y, ADC_ABS_X, ADC_ABS_Y);
             },
             AND_IMM => {
                 self.a = self.a & self.memory.borrow().get(pc + 1);
@@ -172,7 +170,7 @@ impl <'a> Cpu<'a> {
                 let address = addressing_type.address(pc, self);
                 let content = self.memory.borrow().get(address);
                 self.a &= content;
-                timing += runInst(opcode, self, pc, address, AND_IND_Y, AND_ABS_X, AND_ABS_Y);
+                cycles += runInst(opcode, self, pc, address, AND_IND_Y, AND_ABS_X, AND_ABS_Y);
             },
             ASL => self.a = self.asl(self.a),
             ASL_ZP | ASL_ZP_X | ASL_ABS | ASL_ABS_X => {
@@ -188,14 +186,14 @@ impl <'a> Cpu<'a> {
                 self.p.set_n(v & 0x80 != 0);
                 self.p.set_v(v & 0x40 != 0);
             },
-            BPL => { timing += self.branch(self.memory.borrow().get(pc + 1), ! self.p.n()) },
-            BMI => { timing += self.branch(self.memory.borrow().get(pc + 1), self.p.n()) },
-            BNE => { timing += self.branch(self.memory.borrow().get(pc + 1), ! self.p.z()) },
-            BEQ => { timing += self.branch(self.memory.borrow().get(pc + 1), self.p.z()) },
-            BCC => { timing += self.branch(self.memory.borrow().get(pc + 1), ! self.p.c()) },
-            BCS => { timing += self.branch(self.memory.borrow().get(pc + 1), self.p.c()) },
-            BVC => { timing += self.branch(self.memory.borrow().get(pc + 1), ! self.p.v()) },
-            BVS => { timing += self.branch(self.memory.borrow().get(pc + 1), self.p.v()) },
+            BPL => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.n()) },
+            BMI => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.n()) },
+            BNE => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.z()) },
+            BEQ => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.z()) },
+            BCC => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.c()) },
+            BCS => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.c()) },
+            BVC => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.v()) },
+            BVS => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.v()) },
             BRK => self.handleInterrupt(true, IRQ_VECTOR_H, IRQ_VECTOR_L),
             CMP_IMM => self.cmp(self.a, self.memory.borrow().get(pc + 1)),
             CMP_ZP| CMP_ZP_X| CMP_ABS| CMP_ABS_X| CMP_ABS_Y| CMP_IND_X| CMP_IND_Y => {
@@ -395,10 +393,11 @@ impl <'a> Cpu<'a> {
         }
         if DEBUG_ASM || self.pc > DEBUG_PC - 100 {
             let (s, size) = self.memory.borrow().disassemble(pc);
-            println!("{:<30} {}", s, self);
+            println!("{:08X}| {:<30} {}", self.cycles, s, self);
         }
         // i = i + 1;
         // if i >= max { break };
+        return cycles as u64;
     }
 
     fn ror(&mut self, v: u8) -> u8 {
@@ -425,9 +424,8 @@ impl <'a> Cpu<'a> {
     }
 
     fn cmp(&mut self, register: u8, v: u8) {
-        println!("cmp {:2X} {:2X}", register, v);
+        // let tmp: i8 = 0;
         let tmp: i8 = (register as i16 - v as i16) as i8;
-        // let tmp = (register - v) & 0xff;
         self.p.set_c(register >= v);
         self.p.set_z(tmp == 0);
         self.p.set_n(tmp < 0);
