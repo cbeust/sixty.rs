@@ -63,10 +63,10 @@ impl fmt::Display for StatusFlags {
             if v {n} else {"-".as_ref()}
         }
 
-        write!(f, "{{P:${:02X} {}{}{}{}{}{}{}{}}}", self.value(),
+        write!(f, "P=${:02X} {{{}{}{}{}{}{}{}{}}}", self.value(),
                s("N", self.n()),
                s("V", self.v()),
-               s("r", self.reserved()),
+               "-",
                s("B", self.b()),
                s("D", self.d()),
                s("I", self.i()),
@@ -126,7 +126,10 @@ impl <'a> Cpu<'a> {
             if previous_pc != 0 && previous_pc == self.pc {
                 let memory = self.memory.borrow();
                 println!("Infinite loop at PC {:2X} {}", self.pc, self);
-                println!("Memory[240+x]={:02X}", memory.get(0x240 as usize + self.x as usize));
+                println!("Memory: $c={:02X} $f={:02X} $11={:02X}",
+                         memory.get(0xc as usize),
+                         memory.get(0xf as usize),
+                         memory.get(0x11 as usize));
                 println!("");
             }
         }
@@ -400,6 +403,9 @@ impl <'a> Cpu<'a> {
         }
         if self.pc == DEBUG_PC {
             println!("BREAKPOINT DEBUG_PC");
+        }
+        if self.cycles == DEBUG_CYCLES {
+            println!("BREAKPOINT CYCLES");
         }
         let close_to_breakpoint = self.pc > DEBUG_PC - 50 && self.pc < DEBUG_PC;
         if DEBUG_ASM || close_to_breakpoint || self.cycles > DEBUG_CYCLES {
