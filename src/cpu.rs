@@ -484,7 +484,18 @@ impl <'a> Cpu<'a> {
 
     fn adc(&mut self, v: u8) {
         if self.p.d() {
-            unimplemented!("ADD with decimal mode not implemented")
+            let mut l = (self.a & 0x0f) + (v & 0x0f) + self.p.c() as u8;
+            if l & 0xff > 9 { l += 6 }
+            let mut h = (self.a >> 4) + (v >> 4) + if l > 15 { 1 } else { 0 };
+            if h & 0xff > 9 { h += 6 };
+            let result = (l & 0x0f | (h << 4)) & 0xff;
+
+            self.p.set_c(h > 15);
+            self.p.set_z(result == 0);
+            self.p.set_v(false);  // BCD never sets overflow flag
+            self.p.set_n((result & 0x80) != 0);  // N flag is valid on CMOS 6502/65816
+
+            self.a = result;
         } else {
             self.add(v);
         }
@@ -503,7 +514,20 @@ impl <'a> Cpu<'a> {
 
     fn sbc(&mut self, v: u8) {
         if self.p.d() {
-            unimplemented!("SBC with decimal mode not implemented");
+            let mut l: i16 = (self.a as i16 & 0x0f) - (v as i16 & 0x0f)
+                - if self.p.c() { 0 } else { 1 };
+            if (l & 0x10) != 0 { l -= 6 };
+            let mut h: i16 = (self.a  as i16 >> 4) - (v as i16 >> 4)
+                - if (l & 0x10) != 0 { 1 } else { 0 };
+            if (h & 0x10) != 0 { h -= 6 }
+            let result = (l & 0x0f | (h << 4)) & 0xff;
+
+            self.p.set_c((h & 0xff) < 15);
+            self.p.set_z(result == 0);
+            self.p.set_v(false);  // BCD never sets overflow flag
+            self.p.set_n((result & 0x80) != 0);
+
+            self.a = result as u8 & 0xff;
         } else {
             self.add((v ^ 0xff) as u8);
         }
