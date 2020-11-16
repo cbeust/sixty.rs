@@ -8,8 +8,8 @@ use std::borrow::BorrowMut;
 
 
 const DEBUG_ASM: bool = false;
-const DEBUG_PC: usize = 0x20000; // 0x35c9; // 0x20000; // 0x670;
-const DEBUG_CYCLES: u64 = u64::max_value();
+const DEBUG_PC: usize = 0x20000; // 0x670;
+const DEBUG_CYCLES: u64 = u64::max_value(); // 0x000465EE;
 
 pub struct StatusFlags {
     _value: u8
@@ -492,7 +492,8 @@ impl <'a> Cpu<'a> {
 
     fn add(&mut self, v: u8) {
         let result: u16 = self.a as u16 + v as u16 + self.p.c() as u16;
-        let carry6 = self.a & 0x7f + v as u8 & 0x7f + self.p.c() as u8;
+        // NOTE: Parentheses are important here! Remove them and carry6 is incorrectly calculated
+        let carry6 = (self.a & 0x7f) + (v as u8 & 0x7f) + self.p.c() as u8;
         self.p.set_c(result & 0x100 != 0);
         self.p.set_v(self.p.c() ^ (carry6 & 0x80 != 0));
         let result2 = result as u8;
