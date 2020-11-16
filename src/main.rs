@@ -54,7 +54,7 @@ impl StackPointer<'_> {
 impl fmt::Display for StackPointer<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut result = Vec::new();
-        result.push(std::format!("{{{:2X} stack:[", self.s));
+        result.push(std::format!("SP={{${:2X} stack:[", self.s));
         let down = max(self.s + 1, 0xf8);
         let mut i = 0xff;
         if self.s < 0xff {
