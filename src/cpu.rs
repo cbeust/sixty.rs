@@ -9,7 +9,7 @@ use std::borrow::BorrowMut;
 
 const DEBUG_ASM: bool = false;
 const DEBUG_PC: usize = 0x20000; // 0x670;
-const DEBUG_CYCLES: u64 = u64::max_value(); // 0x000465EE;
+const DEBUG_CYCLES: u64 = u64::max_value(); // 0x4FC1A00
 
 pub struct StatusFlags {
     _value: u8
@@ -125,11 +125,10 @@ impl <'a> Cpu<'a> {
             }
             if previous_pc != 0 && previous_pc == self.pc {
                 let memory = self.memory.borrow();
-                println!("Infinite loop at PC {:2X} {}", self.pc, self);
-                println!("Memory: $c={:02X} $f={:02X} $11={:02X}",
-                         memory.get(0xc as usize),
+                println!("Infinite loop at PC={:2X} cycles={:04X} {}", self.pc, self.cycles, self);
+                println!("Memory: $f={:02X} $12={:02X}",
                          memory.get(0xf as usize),
-                         memory.get(0x11 as usize));
+                         memory.get(0x12 as usize));
                 println!("");
             }
         }
