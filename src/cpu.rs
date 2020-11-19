@@ -1,14 +1,11 @@
 #![allow(unused)]
 #![allow(warnings)]
 
-use crate::{Memory, constants::*, word2, StackPointer};
+use crate::{Memory, constants::*, word2};
 use std::fmt;
-use std::cell::{RefCell, RefMut};
-use std::borrow::BorrowMut;
-
 
 const DEBUG_ASM: bool = false;
-const DEBUG_PC: usize = 0x20000; // 0x670;
+const DEBUG_PC: usize = 0x1497; // 0x20000; // 0x670;
 const DEBUG_CYCLES: u64 = u64::max_value(); // 0x4FC1A00
 
 pub struct StatusFlags {
@@ -75,37 +72,36 @@ impl fmt::Display for StatusFlags {
     }
 }
 
-pub struct Cpu<'a> {
-    pub memory: &'a RefCell<dyn Memory>,
+pub struct Cpu {
+    pub memory: Memory,
     pub a: u8,
     pub x: u8,
     pub y: u8,
     pub pc: usize,
-    pub sp: StackPointer<'a>,
     pub p: StatusFlags,
 
     pub cycles: u64
 }
 
-impl fmt::Display for Cpu<'_> {
+impl fmt::Display for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sp = self.memory.format_stack();
         let registers = std::format!("A={:02X} X={:02X} Y={:02X} S={:02X}",
-                                     self.a, self.x, self.y, self.sp.s as u8);
+                                     self.a, self.x, self.y, self.memory.stack_pointer);
         // Desired format:
         // 00000000| 05E0: D0 FE      BNE  $05E0       (2) A=AA X=FF Y=00 S=FD P=03 PC=$5E2 P=$03 {---- --ZC} SP={$FD stack:[$1FF:$55 $1FE:$AA ]}
-        write!(f, "{} {} {}", registers, self.p, self.sp)
+        write!(f, "{} {} {}", registers, self.p, sp)
     }
 }
 
-impl <'a> Cpu<'a> {
-    pub fn new(mut memory: &'a RefCell<dyn Memory>) -> Cpu<'a> {
+impl Cpu {
+    pub fn new(mut memory: Memory) -> Cpu {
         Cpu {
             memory,
             a: 0,
             x: 0,
             y: 0,
             pc: 0,
-            sp: StackPointer { s: 0, memory },
             p: StatusFlags::new(),
             cycles: 0
         }
@@ -119,16 +115,15 @@ impl <'a> Cpu<'a> {
                 println!("ALL TESTS PASSED!");
             } else {
                 previous_pc = self.pc;
-                let opcode = self.memory.borrow().get(self.pc);
+                let opcode = self.memory.get(self.pc);
                 self.pc += SIZES[opcode as usize];
                 self.cycles = self.cycles + self.next_instruction(previous_pc);
             }
             if previous_pc != 0 && previous_pc == self.pc {
-                let memory = self.memory.borrow();
                 println!("Infinite loop at PC={:2X} cycles={:04X} {}", self.pc, self.cycles, self);
                 println!("Memory: $f={:02X} $12={:02X}",
-                         memory.get(0xf as usize),
-                         memory.get(0x12 as usize));
+                         self.memory.get(0xf as usize),
+                         self.memory.get(0x12 as usize));
                 println!("");
             }
         }
@@ -137,18 +132,18 @@ impl <'a> Cpu<'a> {
     pub fn next_instruction(&mut self, pc: usize) -> u64 {
         let max = 10;
         let mut i = 0;
-        // let byte = self.self.memory.borrow().get(self.pc + 1);
-        // let word = word2(byte, self.self.memory.borrow().get(self.pc + 2));
+        // let byte = self.self.memory.get(self.pc + 1);
+        // let word = word2(byte, self.self.memory.get(self.pc + 2));
 
         // let mut bm = Box::new(&self.memory);
-        let opcode = self.memory.borrow().get(pc);
+        let opcode = self.memory.get(pc);
         let addressing_type = &ADDRESSING_TYPES[opcode as usize];
         let mut cycles = TIMINGS[opcode as usize];
 
         fn runInst(opcode: u8, cpu: &mut Cpu, pc: usize, address: usize,
                    ind_y: u8, abs_x: u8, abs_y: u8) -> u8 {
             cpu.p.set_nz_flags(cpu.a);
-            let memory = cpu.memory.borrow();
+            let memory = & cpu.memory;
             let result =
                 if opcode == ind_y {
                     cpu.page_crossed(memory.word(memory.get(pc - 1) as usize), address)
@@ -164,73 +159,73 @@ impl <'a> Cpu<'a> {
         //     println!("BREAKPOINT");
         // }
         match opcode {
-            ADC_IMM => self.adc(self.memory.borrow().get(pc + 1)),
+            ADC_IMM => self.adc(self.memory.get(pc + 1)),
             ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
                 let address = addressing_type.address(pc, self);
-                self.adc(self.memory.borrow().get(address));
+                self.adc(self.memory.get(address));
                 cycles += runInst(opcode, self, pc, address, ADC_IND_Y, ADC_ABS_X, ADC_ABS_Y);
             },
             AND_IMM => {
-                self.a = self.a & self.memory.borrow().get(pc + 1);
+                self.a = self.a & self.memory.get(pc + 1);
                 self.p.set_nz_flags(self.a);
             },
             AND_ZP | AND_ZP_X | AND_ABS | AND_ABS_X | AND_ABS_Y | AND_IND_X | AND_IND_Y => {
                 let address = addressing_type.address(pc, self);
-                let content = self.memory.borrow().get(address);
+                let content = self.memory.get(address);
                 self.a &= content;
                 cycles += runInst(opcode, self, pc, address, AND_IND_Y, AND_ABS_X, AND_ABS_Y);
             },
             ASL => self.a = self.asl(self.a),
             ASL_ZP | ASL_ZP_X | ASL_ABS | ASL_ABS_X => {
                 let address = addressing_type.address(pc, self);
-                let result = self.asl(self.memory.borrow().get(address));
-                self.memory.borrow_mut().set(address, result);
+                let result = self.asl(self.memory.get(address));
+                self.memory.set(address, result);
             },
             BIT_ZP | BIT_ABS => {
                 let address = addressing_type.address(pc, self);
-                let content = self.memory.borrow().get(address);
+                let content = self.memory.get(address);
                 self.p.set_z(content & self.a == 0);
                 self.p.set_n(content & 0x80 != 0);
                 self.p.set_v(content & 0x40 != 0);
             },
-            BPL => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.n()) },
-            BMI => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.n()) },
-            BNE => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.z()) },
-            BEQ => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.z()) },
-            BCC => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.c()) },
-            BCS => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.c()) },
-            BVC => { cycles += self.branch(self.memory.borrow().get(pc + 1), ! self.p.v()) },
-            BVS => { cycles += self.branch(self.memory.borrow().get(pc + 1), self.p.v()) },
+            BPL => { cycles += self.branch(self.memory.get(pc + 1), ! self.p.n()) },
+            BMI => { cycles += self.branch(self.memory.get(pc + 1), self.p.n()) },
+            BNE => { cycles += self.branch(self.memory.get(pc + 1), ! self.p.z()) },
+            BEQ => { cycles += self.branch(self.memory.get(pc + 1), self.p.z()) },
+            BCC => { cycles += self.branch(self.memory.get(pc + 1), ! self.p.c()) },
+            BCS => { cycles += self.branch(self.memory.get(pc + 1), self.p.c()) },
+            BVC => { cycles += self.branch(self.memory.get(pc + 1), ! self.p.v()) },
+            BVS => { cycles += self.branch(self.memory.get(pc + 1), self.p.v()) },
             BRK => self.handle_interrupt(true, IRQ_VECTOR_H, IRQ_VECTOR_L),
-            CMP_IMM => self.cmp(self.a, self.memory.borrow().get(pc + 1)),
+            CMP_IMM => self.cmp(self.a, self.memory.get(pc + 1)),
             CMP_ZP| CMP_ZP_X| CMP_ABS| CMP_ABS_X| CMP_ABS_Y| CMP_IND_X| CMP_IND_Y => {
-                self.cmp(self.a, self.memory.borrow().get(
+                self.cmp(self.a, self.memory.get(
                     addressing_type.address(pc, self)));
             },
-            CPX_IMM => self.cmp(self.x, self.memory.borrow().get(pc + 1)),
+            CPX_IMM => self.cmp(self.x, self.memory.get(pc + 1)),
             CPX_ZP | CPX_ABS => {
-                self.cmp(self.x, self.memory.borrow().get(
+                self.cmp(self.x, self.memory.get(
                     addressing_type.address(pc, self)));
             },
-            CPY_IMM => self.cmp(self.y, self.memory.borrow().get(pc + 1)),
+            CPY_IMM => self.cmp(self.y, self.memory.get(pc + 1)),
             CPY_ZP | CPY_ABS => {
-                self.cmp(self.y, self.memory.borrow().get(
+                self.cmp(self.y, self.memory.get(
                     addressing_type.address(pc, self)));
             },
             DEC_ZP| DEC_ZP_X| DEC_ABS| DEC_ABS_X => {
                 let address = addressing_type.address(pc, self);
-                let old_value = self.memory.borrow().get(address);
+                let old_value = self.memory.get(address);
                 let new_value = if old_value == 0 { 0xff } else { old_value - 1};
-                self.memory.borrow_mut().set(address, new_value);
+                self.memory.set(address, new_value);
                 self.p.set_nz_flags(new_value);
             },
             EOR_IMM => {
-                self.a = self.a ^ self.memory.borrow().get(pc + 1);
+                self.a = self.a ^ self.memory.get(pc + 1);
                 self.p.set_nz_flags(self.a);
             },
             EOR_ZP| EOR_ZP_X| EOR_ABS| EOR_ABS_X| EOR_ABS_Y| EOR_IND_Y| EOR_IND_X => {
                 let address = addressing_type.address(pc, self);
-                self.a = self.a ^ self.memory.borrow().get(address);
+                self.a = self.a ^ self.memory.get(address);
                 self.p.set_nz_flags(self.a);
             },
             CLC => self.p.set_c(false),
@@ -242,68 +237,68 @@ impl <'a> Cpu<'a> {
             CLV => self.p.set_v(false),
             INC_ZP | INC_ZP_X | INC_ABS | INC_ABS_X => {
                 let address = addressing_type.address(pc, self);
-                let content = self.memory.borrow().get(address);
-                let word = self.memory.borrow().word(pc + 1);
+                let content = self.memory.get(address);
+                let word = self.memory.word(pc + 1);
                 let new_value = if content == 0xff { 0 } else { content + 1 };
-                self.memory.borrow_mut().set(address, new_value);
+                self.memory.set(address, new_value);
                 self.p.set_nz_flags(new_value);
             },
-            JMP => self.pc = self.memory.borrow().word(pc + 1) as usize,
+            JMP => self.pc = self.memory.word(pc + 1) as usize,
             JMP_IND => {
-                self.pc = self.memory.borrow().word(addressing_type.address(pc, self))
+                self.pc = self.memory.word(addressing_type.address(pc, self))
                     as usize
             },
             JSR => {
-                self.sp.push_word(pc as u16 + 2);
-                self.pc = self.memory.borrow().word(pc + 1) as usize;
+                self.memory.push_word(pc as u16 + 2);
+                self.pc = self.memory.word(pc + 1) as usize;
             },
             LDX_IMM => {
-                self.x = self.memory.borrow().get(pc + 1);
+                self.x = self.memory.get(pc + 1);
                 self.p.set_nz_flags(self.x);
             },
             LDA_IMM => {
-                self.a = self.memory.borrow().get(pc + 1);
+                self.a = self.memory.get(pc + 1);
                 self.p.set_nz_flags(self.a);
             },
             LDA_ZP| LDA_ZP_X| LDA_ABS| LDA_ABS_X| LDA_ABS_Y| LDA_IND_X| LDA_IND_Y => {
                 let address = addressing_type.address(pc, self);
-                self.a = self.memory.borrow().get(address);
+                self.a = self.memory.get(address);
                 self.p.set_nz_flags(self.a);
             },
             LDX_IMM => {
-                self.x = self.memory.borrow().get(pc + 1);
+                self.x = self.memory.get(pc + 1);
                 self.p.set_nz_flags(self.x);
             },
             LDX_ZP | LDX_ZP_Y | LDX_ABS | LDX_ABS_Y => {
                 let address = addressing_type.address(pc, self);
-                let content = self.memory.borrow().get(address);
+                let content = self.memory.get(address);
                 self.x = content;
                 self.p.set_nz_flags(self.x);
             },
             LDY_IMM => {
-                self.y = self.memory.borrow().get(pc + 1);
+                self.y = self.memory.get(pc + 1);
                 self.p.set_nz_flags(self.y);
             },
             LDY_ZP | LDY_ZP_X | LDY_ABS | LDY_ABS_X => {
                 let address = addressing_type.address(pc, self);
-                let content = self.memory.borrow().get(address);
+                let content = self.memory.get(address);
                 self.y = content;
                 self.p.set_nz_flags(self.y);
             },
             LSR => self.a = self.lsr(self.a),
             LSR_ZP| LSR_ZP_X| LSR_ABS| LSR_ABS_X => {
                 let address = addressing_type.address(pc, self);
-                let new_value = self.lsr(self.memory.borrow().get(address));
-                self.memory.borrow_mut().set(address, new_value);
+                let new_value = self.lsr(self.memory.get(address));
+                self.memory.set(address, new_value);
             },
             NOP => {},
             ORA_IMM => {
-                self.a = self.a | self.memory.borrow().get(pc + 1);
+                self.a = self.a | self.memory.get(pc + 1);
                 self.p.set_nz_flags(self.a);
             },
             ORA_ZP| ORA_ZP_X| ORA_ABS| ORA_ABS_X| ORA_ABS_Y| ORA_IND_X| ORA_IND_Y => {
                 let address = addressing_type.address(pc, self);
-                self.a = self.a | self.memory.borrow().get(address);
+                self.a = self.a | self.memory.get(address);
                 self.p.set_nz_flags(self.a);
             },
             TAX => {
@@ -343,58 +338,58 @@ impl <'a> Cpu<'a> {
             },
             ROL_ZP | ROL_ZP_X | ROL_ABS | ROL_ABS_X => {
                 let address = addressing_type.address(pc, self);
-                let new_value = self.rol(self.memory.borrow().get(address));
-                self.memory.borrow_mut().set(address, new_value);
+                let new_value = self.rol(self.memory.get(address));
+                self.memory.set(address, new_value);
             },
             ROR => {
                 self.a = self.ror(self.a);
             },
             ROR_ZP | ROR_ZP_X | ROR_ABS | ROR_ABS_X => {
                 let address = addressing_type.address(pc, self);
-                let new_value = self.ror(self.memory.borrow().get(address));
-                self.memory.borrow_mut().set(address, new_value);
+                let new_value = self.ror(self.memory.get(address));
+                self.memory.set(address, new_value);
             },
             RTI => {
-                self.p.set_value(self.sp.pop_byte());
-                self.pc = self.sp.pop_word();
+                self.p.set_value(self.memory.pop_byte());
+                self.pc = self.memory.pop_word();
             },
             RTS => {
-                self.pc = self.sp.pop_word() + 1;
+                self.pc = self.memory.pop_word() + 1;
             },
             SBC_IMM => {
-                self.sbc(self.memory.borrow().get(pc + 1));
+                self.sbc(self.memory.get(pc + 1));
             },
             SBC_ZP |  SBC_ZP_X | SBC_ABS | SBC_ABS_X | SBC_ABS_Y | SBC_IND_X | SBC_IND_Y =>{
                 let address = addressing_type.address(pc, self);
-                self.sbc(self.memory.borrow().get(address));
+                self.sbc(self.memory.get(address));
             },
             STA_ZP | STA_ZP_X | STA_ABS | STA_ABS_X | STA_ABS_Y | STA_IND_X | STA_IND_Y => {
                 let address = addressing_type.address(pc, self);
-                self.memory.borrow_mut().set(address, self.a);
+                self.memory.set(address, self.a);
             },
-            TXS => self.sp.s = self.x as usize,
+            TXS => self.memory.stack_pointer = self.x as usize,
             TSX => {
-                self.x = self.sp.s as u8;
+                self.x = self.memory.stack_pointer as u8;
                 self.p.set_nz_flags(self.x);
             },
-            PHA => self.sp.push_byte(self.a),
+            PHA => self.memory.push_byte(self.a),
             PLA => {
-                self.a = self.sp.pop_byte();
+                self.a = self.memory.pop_byte();
                 self.p.set_nz_flags(self.a);
             },
             PHP => {
                 self.p.set_b(true);
                 // self.p.set_reserved(true);
-                self.sp.push_byte(self.p.value());
+                self.memory.push_byte(self.p.value());
             },
-            PLP => self.p.set_value(self.sp.pop_byte()),
+            PLP => self.p.set_value(self.memory.pop_byte()),
             STX_ZP | STX_ZP_Y | STX_ABS => {
                 let address = addressing_type.address(pc, self);
-                self.memory.borrow_mut().set(address, self.x);
+                self.memory.set(address, self.x);
             },
             STY_ZP | STY_ZP_X | STY_ABS => {
                 let address = addressing_type.address(pc, self);
-                self.memory.borrow_mut().set(address, self.y);
+                self.memory.set(address, self.y);
             },
             _ => {
                 panic!("Unknown opcode");
@@ -408,7 +403,7 @@ impl <'a> Cpu<'a> {
         }
         let close_to_breakpoint = self.pc > DEBUG_PC - 50 && self.pc < DEBUG_PC;
         if DEBUG_ASM || close_to_breakpoint || self.cycles > DEBUG_CYCLES {
-            let (s, size) = self.memory.borrow().disassemble(pc);
+            let (s, size) = self.memory.disassemble(pc);
             println!("{:08X}| {:<30} {}", self.cycles, s, self);
         }
         // i = i + 1;
@@ -449,11 +444,11 @@ impl <'a> Cpu<'a> {
 
     fn handle_interrupt(&mut self, brk: bool, vector_high: usize, vector_low: usize) {
         self.p.set_b(brk);
-        self.sp.push_word((self.pc + 1) as u16);
-        self.sp.push_byte(self.p.value());
+        self.memory.push_word((self.pc + 1) as u16);
+        self.memory.push_byte(self.p.value());
         self.p.set_i(true);
-        let memory = self.memory.borrow();
-        let new_pc = (self.memory.borrow().get(vector_high) as u16) << 8 | self.memory.borrow().get(vector_low) as u16;
+        let memory = &self.memory;
+        let new_pc = (self.memory.get(vector_high) as u16) << 8 | self.memory.get(vector_low) as u16;
         self.pc = new_pc as usize;
     }
 

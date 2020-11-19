@@ -269,13 +269,13 @@ impl AddressingType {
     }
 
     // Only used by JMP
-    fn deref16(&self, mut memory: Box<dyn Memory>, pc: usize) -> u16 {
+    fn deref16(&self, mut memory: Memory, pc: usize) -> u16 {
         let w = memory.word(pc + 1) as usize;
         memory.word(w)
     }
 
     pub fn address(&self, pc: usize, cpu: &Cpu) -> usize {
-        let memory = &cpu.memory.borrow();
+        let memory = &cpu.memory;
         fn zp(a: u8, b: u8) -> u8 {
             ((a as u16 + b as u16) as u8)
         }
