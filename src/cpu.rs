@@ -113,6 +113,7 @@ impl Cpu {
         loop {
             if self.pc == 0x346c || self.pc == 0x3469 {
                 println!("ALL TESTS PASSED!");
+                break;
             } else {
                 previous_pc = self.pc;
                 let opcode = self.memory.get(self.pc);
@@ -125,6 +126,7 @@ impl Cpu {
                          self.memory.get(0xf as usize),
                          self.memory.get(0x12 as usize));
                 println!("");
+                break;
             }
         }
     }
