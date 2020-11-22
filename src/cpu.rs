@@ -3,6 +3,8 @@
 
 use crate::{Memory, constants::*, word2};
 use std::fmt;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 const DEBUG_ASM: bool = false;
 const DEBUG_PC: usize = 0x1497; // 0x20000; // 0x670;
@@ -72,6 +74,13 @@ impl fmt::Display for StatusFlags {
     }
 }
 
+// type CpuListener = Fn(Cpu) -> bool;
+
+pub trait CpuListener {
+    /// return true if the CPU should stop, false otherwise
+    fn on_pc_changed(&mut self, cpu: &Cpu) -> bool;
+}
+
 pub struct Cpu {
     pub memory: Memory,
     pub a: u8,
@@ -80,7 +89,9 @@ pub struct Cpu {
     pub pc: usize,
     pub p: StatusFlags,
 
-    pub cycles: u64
+    pub cycles: u64,
+
+    pub listener: Option<Rc<RefCell<CpuListener>>>
 }
 
 impl fmt::Display for Cpu {
@@ -95,7 +106,7 @@ impl fmt::Display for Cpu {
 }
 
 impl Cpu {
-    pub fn new(mut memory: Memory) -> Cpu {
+    pub fn new(mut memory: Memory, listener: Option<Rc<RefCell<CpuListener>>>) -> Cpu {
         Cpu {
             memory,
             a: 0,
@@ -103,7 +114,8 @@ impl Cpu {
             y: 0,
             pc: 0,
             p: StatusFlags::new(),
-            cycles: 0
+            cycles: 0,
+            listener
         }
     }
 
@@ -119,6 +131,12 @@ impl Cpu {
                 let opcode = self.memory.get(self.pc);
                 self.pc += SIZES[opcode as usize];
                 self.cycles = self.cycles + self.next_instruction(previous_pc);
+                let stop = if let Some(listener) = &mut self.listener {
+                    listener.on_pc_changed(self)
+                } else {
+                    false
+                };
+                if stop { break; }
             }
             if previous_pc != 0 && previous_pc == self.pc {
                 println!("Infinite loop at PC={:2X} cycles={:04X} {}", self.pc, self.cycles, self);

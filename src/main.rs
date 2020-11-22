@@ -1,15 +1,30 @@
 mod constants;
 mod cpu;
 
-use crate::cpu::Cpu;
+use crate::cpu::{Cpu, CpuListener};
 use constants::*;
 use std::io::prelude::*;
 use std::fs::File;
 use std::cmp::max;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+struct Listener {
+}
+
+impl CpuListener for Listener {
+    fn on_pc_changed(&mut self, cpu: &Cpu) -> bool {
+        println!("PC changed: {:04x}", cpu.pc);
+        // self.count = self.count + 1;ru
+        // return self.count > 10
+        false
+    }
+}
 
 fn main() {
     let m = Memory::new("6502_functional_test.bin");
-    Cpu::new(m).run(0x400);
+    let listener = Box::new(Listener{ });
+    Cpu::new(m, Some(Rc::new(RefCell::new(listener)))).run(0x400);
 }
 
 const STACK_ADDRESS: usize = 0x100;
