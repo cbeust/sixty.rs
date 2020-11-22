@@ -23,8 +23,7 @@ impl CpuListener for Listener {
 
 fn main() {
     let m = Memory::new("6502_functional_test.bin");
-    let listener = Box::new(Listener{ });
-    Cpu::new(m, Some(Rc::new(RefCell::new(listener)))).run(0x400);
+    Cpu::new(m, Some(&Listener{})).run(0x400);
 }
 
 const STACK_ADDRESS: usize = 0x100;

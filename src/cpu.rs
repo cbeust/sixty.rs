@@ -81,7 +81,7 @@ pub trait CpuListener {
     fn on_pc_changed(&mut self, cpu: &Cpu) -> bool;
 }
 
-pub struct Cpu {
+pub struct Cpu<'a> {
     pub memory: Memory,
     pub a: u8,
     pub x: u8,
@@ -91,10 +91,10 @@ pub struct Cpu {
 
     pub cycles: u64,
 
-    pub listener: Option<Rc<RefCell<CpuListener>>>
+    pub listener: Option<&'a CpuListener>
 }
 
-impl fmt::Display for Cpu {
+impl fmt::Display for Cpu<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sp = self.memory.format_stack();
         let registers = std::format!("A={:02X} X={:02X} Y={:02X} S={:02X}",
@@ -105,8 +105,8 @@ impl fmt::Display for Cpu {
     }
 }
 
-impl Cpu {
-    pub fn new(mut memory: Memory, listener: Option<Rc<RefCell<CpuListener>>>) -> Cpu {
+impl Cpu<'_> {
+    pub fn new(mut memory: Memory, listener: Option<&CpuListener>) -> Cpu {
         Cpu {
             memory,
             a: 0,
@@ -131,7 +131,7 @@ impl Cpu {
                 let opcode = self.memory.get(self.pc);
                 self.pc += SIZES[opcode as usize];
                 self.cycles = self.cycles + self.next_instruction(previous_pc);
-                let stop = if let Some(listener) = &mut self.listener {
+                let stop = if let Some(listener) = & mut self.listener {
                     listener.on_pc_changed(self)
                 } else {
                     false
