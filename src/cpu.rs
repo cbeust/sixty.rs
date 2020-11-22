@@ -5,9 +5,10 @@ use crate::{Memory, constants::*, word2};
 use std::fmt;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::borrow::BorrowMut;
 
 const DEBUG_ASM: bool = false;
-const DEBUG_PC: usize = 0x1497; // 0x20000; // 0x670;
+const DEBUG_PC: usize = 0x20000; // 0x670;
 const DEBUG_CYCLES: u64 = u64::max_value(); // 0x4FC1A00
 
 pub struct StatusFlags {
@@ -77,11 +78,12 @@ impl fmt::Display for StatusFlags {
 // type CpuListener = Fn(Cpu) -> bool;
 
 pub trait CpuListener {
-    /// return true if the CPU should stop, false otherwise
-    fn on_pc_changed(&mut self, cpu: &Cpu) -> bool;
+    /// return Ok() if the execution should continue and Err() if it should stop, in which
+    /// case the String will give the reason for the stop.
+    fn on_pc_changed(&mut self, cpu: &Cpu) -> Result<bool, String>;
 }
 
-pub struct Cpu<'a> {
+pub struct Cpu {
     pub memory: Memory,
     pub a: u8,
     pub x: u8,
@@ -91,10 +93,10 @@ pub struct Cpu<'a> {
 
     pub cycles: u64,
 
-    pub listener: Option<&'a CpuListener>
+    pub listener: RefCell<Option<Box<dyn CpuListener>>>
 }
 
-impl fmt::Display for Cpu<'_> {
+impl fmt::Display for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sp = self.memory.format_stack();
         let registers = std::format!("A={:02X} X={:02X} Y={:02X} S={:02X}",
@@ -105,8 +107,8 @@ impl fmt::Display for Cpu<'_> {
     }
 }
 
-impl Cpu<'_> {
-    pub fn new(mut memory: Memory, listener: Option<&CpuListener>) -> Cpu {
+impl Cpu {
+    pub fn new(mut memory: Memory, listener: Option<Box<dyn CpuListener>>) -> Cpu {
         Cpu {
             memory,
             a: 0,
@@ -115,35 +117,26 @@ impl Cpu<'_> {
             pc: 0,
             p: StatusFlags::new(),
             cycles: 0,
-            listener
+            listener: RefCell::new(listener)
         }
     }
 
     pub fn run(&mut self, start_pc: usize) {
         self.pc = start_pc;
-        let mut previous_pc = 0;
         loop {
-            if self.pc == 0x346c || self.pc == 0x3469 {
-                println!("ALL TESTS PASSED!");
-                break;
+            let previous_pc = self.pc;
+            let opcode = self.memory.get(self.pc);
+            self.pc += SIZES[opcode as usize];
+            self.cycles = self.cycles + self.next_instruction(previous_pc);
+
+            let stop = if let Some(l) = self.listener.borrow_mut().as_mut() {
+                l.on_pc_changed(self)
             } else {
-                previous_pc = self.pc;
-                let opcode = self.memory.get(self.pc);
-                self.pc += SIZES[opcode as usize];
-                self.cycles = self.cycles + self.next_instruction(previous_pc);
-                let stop = if let Some(listener) = & mut self.listener {
-                    listener.on_pc_changed(self)
-                } else {
-                    false
-                };
-                if stop { break; }
-            }
-            if previous_pc != 0 && previous_pc == self.pc {
-                println!("Infinite loop at PC={:2X} cycles={:04X} {}", self.pc, self.cycles, self);
-                println!("Memory: $f={:02X} $12={:02X}",
-                         self.memory.get(0xf as usize),
-                         self.memory.get(0x12 as usize));
-                println!("");
+                Ok(false)
+            };
+
+            if let Err(reason) = stop {
+                println!("{}", reason);
                 break;
             }
         }
@@ -160,8 +153,8 @@ impl Cpu<'_> {
         let addressing_type = &ADDRESSING_TYPES[opcode as usize];
         let mut cycles = TIMINGS[opcode as usize];
 
-        fn runInst(opcode: u8, cpu: &mut Cpu, pc: usize, address: usize,
-                   ind_y: u8, abs_x: u8, abs_y: u8) -> u8 {
+        fn run_inst(opcode: u8, cpu: &mut Cpu, pc: usize, address: usize,
+                    ind_y: u8, abs_x: u8, abs_y: u8) -> u8 {
             cpu.p.set_nz_flags(cpu.a);
             let memory = & cpu.memory;
             let result =
@@ -183,7 +176,7 @@ impl Cpu<'_> {
             ADC_ZP| ADC_ZP_X| ADC_ABS| ADC_ABS_X| ADC_ABS_Y| ADC_IND_X| ADC_IND_Y => {
                 let address = addressing_type.address(pc, self);
                 self.adc(self.memory.get(address));
-                cycles += runInst(opcode, self, pc, address, ADC_IND_Y, ADC_ABS_X, ADC_ABS_Y);
+                cycles += run_inst(opcode, self, pc, address, ADC_IND_Y, ADC_ABS_X, ADC_ABS_Y);
             },
             AND_IMM => {
                 self.a = self.a & self.memory.get(pc + 1);
@@ -193,7 +186,7 @@ impl Cpu<'_> {
                 let address = addressing_type.address(pc, self);
                 let content = self.memory.get(address);
                 self.a &= content;
-                cycles += runInst(opcode, self, pc, address, AND_IND_Y, AND_ABS_X, AND_ABS_Y);
+                cycles += run_inst(opcode, self, pc, address, AND_IND_Y, AND_ABS_X, AND_ABS_Y);
             },
             ASL => self.a = self.asl(self.a),
             ASL_ZP | ASL_ZP_X | ASL_ABS | ASL_ABS_X => {

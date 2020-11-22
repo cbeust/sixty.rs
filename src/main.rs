@@ -6,24 +6,31 @@ use constants::*;
 use std::io::prelude::*;
 use std::fs::File;
 use std::cmp::max;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 struct Listener {
+    previous_pc: usize
 }
 
 impl CpuListener for Listener {
-    fn on_pc_changed(&mut self, cpu: &Cpu) -> bool {
-        println!("PC changed: {:04x}", cpu.pc);
-        // self.count = self.count + 1;ru
-        // return self.count > 10
-        false
+    fn on_pc_changed(&mut self, cpu: &Cpu) -> Result<bool, String> {
+        if cpu.pc == 0x346c || cpu.pc == 0x3469 {
+            Err(String::from("All tests passed"))
+        } else {
+            if self.previous_pc != 0 && self.previous_pc == cpu.pc {
+                // println!("Infinite loop at PC={:2X} cycles={:04X} {}", cpu.pc, cpu.cycles, cpu);
+                // println!("");
+                Err(format!("Infinite loop at PC={:2X} cycles={:04X} {}", cpu.pc, cpu.cycles, cpu))
+            } else {
+                self.previous_pc = cpu.pc;
+                Ok(false)
+            }
+        }
     }
 }
 
 fn main() {
     let m = Memory::new("6502_functional_test.bin");
-    Cpu::new(m, Some(&Listener{})).run(0x400);
+    Cpu::new(m, Some(Box::new(Listener{ previous_pc: 0}))).run(0x400);
 }
 
 const STACK_ADDRESS: usize = 0x100;
