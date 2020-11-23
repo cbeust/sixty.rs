@@ -1,7 +1,7 @@
 #![allow(unused)]
 #![allow(warnings)]
 
-use crate::{Memory, constants::*, word2};
+use crate::{Memory, constants::*};
 use std::fmt;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -80,7 +80,7 @@ impl fmt::Display for StatusFlags {
 pub trait CpuListener {
     /// return Ok() if the execution should continue and Err() if it should stop, in which
     /// case the String will give the reason for the stop.
-    fn on_pc_changed(&mut self, cpu: &Cpu) -> Result<bool, String>;
+    fn on_pc_changed(&mut self, cpu: &Cpu) -> RunStatus;
 }
 
 pub struct Cpu {
@@ -107,6 +107,11 @@ impl fmt::Display for Cpu {
     }
 }
 
+pub enum RunStatus {
+    Continue,
+    Stop(bool, String) // If bool is true, stopping with no error + reason for stopping
+}
+
 impl Cpu {
     pub fn new(mut memory: Memory, listener: Option<Box<dyn CpuListener>>) -> Cpu {
         Cpu {
@@ -121,8 +126,9 @@ impl Cpu {
         }
     }
 
-    pub fn run(&mut self, start_pc: usize) {
+    pub fn run(&mut self, start_pc: usize) -> RunStatus {
         self.pc = start_pc;
+        let mut result = RunStatus::Continue;
         loop {
             let previous_pc = self.pc;
             let opcode = self.memory.get(self.pc);
@@ -132,21 +138,24 @@ impl Cpu {
             let stop = if let Some(l) = self.listener.borrow_mut().as_mut() {
                 l.on_pc_changed(self)
             } else {
-                Ok(false)
+                RunStatus::Continue
             };
 
-            if let Err(reason) = stop {
-                println!("{}", reason);
-                break;
+            match stop {
+                RunStatus::Stop(success, ref reason) => {
+                    result = RunStatus::Stop(success, reason.to_string());
+                    println!("{}", reason.as_str());
+                    break;
+                },
+                _ => {}
             }
         }
+        return result;
     }
 
     pub fn next_instruction(&mut self, pc: usize) -> u64 {
         let max = 10;
         let mut i = 0;
-        // let byte = self.self.memory.get(self.pc + 1);
-        // let word = word2(byte, self.self.memory.get(self.pc + 2));
 
         // let mut bm = Box::new(&self.memory);
         let opcode = self.memory.get(pc);
