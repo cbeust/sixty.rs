@@ -321,8 +321,8 @@ pub const TIMINGS: [u8; 256] = [
 ];
 
 use AddressingType::*;
-use crate::Memory;
 use crate::cpu::Cpu;
+use crate::memory::Memory;
 
 pub const ADDRESSING_TYPES: [AddressingType; 256] = [
     NONE, INDIRECT_X, NONE, NONE,  // 0x00-0x03

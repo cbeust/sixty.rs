@@ -7,18 +7,45 @@ const STACK_ADDRESS: usize = 0x100;
 
 pub struct Memory {
     buffer: Vec<u8>,
+    listener: Option<Box<dyn MemoryListener>>,
     pub(crate) stack_pointer: usize,
+}
+
+pub trait MemoryListener {
+    fn on_read_or_wrote(&mut self, address: usize, value: u8);
 }
 
 impl Memory {
 
-    pub fn new(file_name: &str) -> Memory {
+    pub fn new_with_file(file_name: &str, listener: Option<Box<dyn MemoryListener>>) -> Memory {
         let mut result = Memory {
             buffer: Vec::new(),
+            listener,
             stack_pointer: 0xff
         };
         result.load(file_name);
         result
+    }
+
+    pub fn new_with_vec(buffer: Vec<u8>, listener: Option<Box<dyn MemoryListener>>) -> Memory {
+        let actual_buffer =
+            if buffer.len() < 0x200 {
+                // The memory needs to be at least $200 big since the stack is $100-$1FF,
+                // so create a $200 big memory and copy the passed buffer into it
+                let mut b = vec![0; 0x200];
+                for (i, x) in buffer.iter().enumerate() {
+                    b[i] = *x;
+                }
+                b
+            } else {
+                // The passed buffer is big enough, use it as is
+                buffer
+            };
+        Memory {
+            buffer: actual_buffer,
+            listener,
+            stack_pointer: 0xff
+        }
     }
 
     pub(crate) fn get(&self, index: usize) -> u8 {

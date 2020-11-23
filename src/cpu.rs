@@ -1,13 +1,14 @@
 #![allow(unused)]
 #![allow(warnings)]
 
-use crate::{Memory, constants::*};
+use crate::{constants::*};
 use std::fmt;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::borrow::BorrowMut;
+use crate::memory::Memory;
 
-const DEBUG_ASM: bool = false;
+const DEBUG_ASM: bool = true;
 const DEBUG_PC: usize = 0x20000; // 0x670;
 const DEBUG_CYCLES: u64 = u64::max_value(); // 0x4FC1A00
 
@@ -414,7 +415,7 @@ impl Cpu {
                 self.memory.set(address, self.y);
             },
             _ => {
-                panic!("Unknown opcode");
+                panic!("Unknown opcode: {}", opcode);
             }
         }
         if self.pc == DEBUG_PC {

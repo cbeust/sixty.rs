@@ -28,7 +28,7 @@ mod tests {
 
     #[test]
     fn functional_tests() {
-        let m = Memory::new("6502_functional_test.bin");
+        let m = Memory::new_with_file("6502_functional_test.bin", None);
         let status = Cpu::new(m, Some(Box::new(Listener{ previous_pc: 0}))).run(0x400);
         match status {
             RunStatus::Stop(success, reason) => {
