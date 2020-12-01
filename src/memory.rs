@@ -7,7 +7,7 @@ const STACK_ADDRESS: usize = 0x100;
 
 pub struct Memory {
     buffer: Vec<u8>,
-    listener: Option<Box<dyn MemoryListener>>,
+    _listener: Option<Box<dyn MemoryListener>>,
     pub(crate) stack_pointer: usize,
 }
 
@@ -20,7 +20,7 @@ impl Memory {
     pub fn new_with_file(file_name: &str, listener: Option<Box<dyn MemoryListener>>) -> Memory {
         let mut result = Memory {
             buffer: Vec::new(),
-            listener,
+            _listener: listener,
             stack_pointer: 0xff
         };
         result.load(file_name);
@@ -43,7 +43,7 @@ impl Memory {
             };
         Memory {
             buffer: actual_buffer,
-            listener,
+            _listener: listener,
             stack_pointer: 0xff
         }
     }
